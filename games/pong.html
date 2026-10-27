@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b1220">
+<title>Pong · Hatorri Arcade</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<style>
+:root{--bg:#10151f;--panel:#192131;--line:#33405a;--blue:#62b5ff;--purple:#9a7cff;--text:#f7f9ff;--muted:#aeb9cc}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+body{margin:0;background:transparent;color:var(--text);font-family:Arial,sans-serif;touch-action:manipulation}
+.shell{max-width:620px;margin:auto;padding:14px}
+.game-card{overflow:hidden;border:1px solid var(--line);border-radius:20px;background:linear-gradient(160deg,var(--panel),var(--bg));box-shadow:0 14px 38px #0008}
+.game-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 18px;border-bottom:1px solid var(--line)}
+.game-brand{color:var(--blue);font-size:9px;font-weight:800;letter-spacing:2px}
+.game-title{font-size:18px;font-weight:900;margin-top:3px}
+.scorebar{display:flex;gap:14px;text-align:center}
+.score-label{color:var(--muted);font-size:8px;font-weight:700;letter-spacing:1px}
+.score-value{font:800 18px monospace;margin-top:3px}
+.game-main{padding:15px}
+.stage{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:15px;background:#0b1018}
+.action-row{display:flex;gap:8px;justify-content:center;margin-top:12px}
+.game-button{min-height:44px;padding:0 15px;border:1px solid #ffffff26;border-radius:11px;background:#ffffff12;color:white;font-weight:800}
+.game-button:active{transform:scale(.96)}
+.game-button.primary{background:linear-gradient(135deg,var(--purple),var(--blue));color:#07101c}
+.game-status{min-height:15px;margin-top:11px;color:var(--muted);font:10px monospace;text-align:center}
+.cover{position:absolute;inset:0;z-index:4;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;background:#090d14e8;text-align:center}
+.cover.hidden{display:none}
+.cover-title{font-size:25px;font-weight:900}
+.cover-text{max-width:290px;margin:7px 0 14px;color:var(--muted);font-size:11px}
+.pong{display:block;width:100%;height:300px;background:#07111b;touch-action:none}.mode{display:flex;gap:8px;justify-content:center;margin-top:12px}</style>
+<link rel="stylesheet" href="../assets/game-shell.css">
+<link rel="stylesheet" href="../assets/hatorri-theme.css">
+</head>
+<body>
+<nav class="arcade-game-nav" aria-label="Navegação do jogo"><a href="../index.html">← Voltar ao arcade</a><span>HATORRI <strong>ARCADE</strong></span></nav>
+<div class="shell"><div class="game-card"><div class="game-head"><div><div class="game-brand">HATORRI ARCADE</div><div class="game-title">PONG</div></div><div class="scorebar"><div><div class="score-label">VOCÊ</div><div class="score-value" id="you">0</div></div><div><div class="score-label">BOT</div><div class="score-value" id="bot">0</div></div></div></div><div class="game-main"><div class="stage" id="stage"><canvas class="pong" id="canvas" width="560" height="300"></canvas><div class="cover" id="cover"><div class="cover-title" id="title">PONG</div><div class="cover-text" id="text">Mova a raquete azul deslizando na pista.</div><button class="game-button primary" id="start">COMEÇAR</button></div></div><div class="game-status">PRIMEIRO A 7 PONTOS VENCE</div></div></div></div>
+<p class="arcade-game-note">Jogo local no navegador. Recordes ficam neste aparelho quando o armazenamento está disponível.</p>
+<script>
+
+const arcadeStorage = (() => {
+  const memory = new Map();
+  return {
+    getItem(key) {
+      key = String(key);
+      try { const value = globalThis.localStorage.getItem(key); if (value !== null) { memory.set(key, value); return value; } }
+      catch { /* Storage may be denied in an embedded browser. */ }
+      return memory.has(key) ? memory.get(key) : null;
+    },
+    setItem(key, value) {
+      key = String(key); value = String(value); memory.set(key, value);
+      try { globalThis.localStorage.setItem(key, value); } catch { /* Keep this page playable in memory. */ }
+    },
+    removeItem(key) {
+      key = String(key); memory.delete(key);
+      try { globalThis.localStorage.removeItem(key); } catch { /* No persistent storage. */ }
+    }
+  };
+})();
+
+
+
+const canvas=document.getElementById('canvas'),ctx=canvas.getContext('2d'),stage=document.getElementById('stage'),youEl=document.getElementById('you'),botEl=document.getElementById('bot'),cover=document.getElementById('cover'),title=document.getElementById('title'),text=document.getElementById('text'),start=document.getElementById('start');let py=120,ay=120,bx=280,by=150,vx=235,vy=125,you=0,bot=0,running=false,last=0,raf=0;function serve(dir){bx=280;by=150;vx=235*dir;vy=(Math.random()-.5)*250}function reset(){py=ay=120;you=bot=0;serve(Math.random()<.5?-1:1);running=true;last=performance.now();cover.classList.add('hidden');cancelAnimationFrame(raf);raf=requestAnimationFrame(loop)}function finish(won){running=false;draw();title.textContent=won?'VOCÊ VENCEU! 🏆':'O BOT VENCEU';text.textContent=you+' × '+bot;start.textContent='JOGAR NOVAMENTE';cover.classList.remove('hidden')}function move(e){const rect=canvas.getBoundingClientRect();py=Math.max(0,Math.min(240,(e.clientY-rect.top)*(300/rect.height)-30))}function draw(){ctx.fillStyle='#07111b';ctx.fillRect(0,0,560,300);ctx.strokeStyle='#ffffff25';ctx.setLineDash([9,9]);ctx.beginPath();ctx.moveTo(280,0);ctx.lineTo(280,300);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#62b5ff';ctx.fillRect(18,py,10,60);ctx.fillStyle='#e879a9';ctx.fillRect(532,ay,10,60);ctx.fillStyle='#fff';ctx.shadowColor='#fff';ctx.shadowBlur=9;ctx.beginPath();ctx.arc(bx,by,7,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;youEl.textContent=you;botEl.textContent=bot}function loop(now){if(!running)return;const dt=Math.min(.03,(now-last)/1000);last=now;ay+=Math.max(-185*dt,Math.min(185*dt,by-(ay+30)));bx+=vx*dt;by+=vy*dt;if(by<7){by=7;vy=Math.abs(vy)}if(by>293){by=293;vy=-Math.abs(vy)}if(vx<0&&bx<35&&bx>18&&by>py&&by<py+60){bx=35;vx=Math.abs(vx)*1.035;vy+=(by-(py+30))*4}if(vx>0&&bx>525&&bx<542&&by>ay&&by<ay+60){bx=525;vx=-Math.abs(vx)*1.025;vy+=(by-(ay+30))*3}if(bx<-15){bot++;if(bot>=7)return finish(false);serve(1)}if(bx>575){you++;if(you>=7)return finish(true);serve(-1)}draw();raf=requestAnimationFrame(loop)}stage.addEventListener('pointerdown',move);stage.addEventListener('pointermove',e=>{if(e.buttons||e.pointerType==='touch')move(e)});stage.addEventListener('touchmove',e=>{e.preventDefault();move(e.touches[0])},{passive:false});start.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();reset()});draw();
+
+
+// Native keyboard activation must also work on the recovered pointer controls.
+document.addEventListener('click', event => {
+  const button = event.target.closest?.('button');
+  if (event.detail !== 0 || !button || button.onclick || event.defaultPrevented) return;
+  const EventType = globalThis.PointerEvent || globalThis.MouseEvent;
+  if (EventType) button.dispatchEvent(new EventType('pointerdown', { bubbles: true, cancelable: true }));
+});
+
+</script>
+</body>
+</html>

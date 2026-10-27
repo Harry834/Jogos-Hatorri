@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b1220">
+<title>Piano · Hatorri Arcade</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<style>
+:root{--bg:#10151f;--panel:#192131;--line:#33405a;--blue:#62b5ff;--purple:#9a7cff;--text:#f7f9ff;--muted:#aeb9cc}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+body{margin:0;background:transparent;color:var(--text);font-family:Arial,sans-serif;touch-action:manipulation}
+.shell{max-width:620px;margin:auto;padding:14px}
+.game-card{overflow:hidden;border:1px solid var(--line);border-radius:20px;background:linear-gradient(160deg,var(--panel),var(--bg));box-shadow:0 14px 38px #0008}
+.game-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 18px;border-bottom:1px solid var(--line)}
+.game-brand{color:var(--blue);font-size:9px;font-weight:800;letter-spacing:2px}
+.game-title{font-size:18px;font-weight:900;margin-top:3px}
+.scorebar{display:flex;gap:14px;text-align:center}
+.score-label{color:var(--muted);font-size:8px;font-weight:700;letter-spacing:1px}
+.score-value{font:800 18px monospace;margin-top:3px}
+.game-main{padding:15px}
+.stage{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:15px;background:#0b1018}
+.action-row{display:flex;gap:8px;justify-content:center;margin-top:12px}
+.game-button{min-height:44px;padding:0 15px;border:1px solid #ffffff26;border-radius:11px;background:#ffffff12;color:white;font-weight:800}
+.game-button:active{transform:scale(.96)}
+.game-button.primary{background:linear-gradient(135deg,var(--purple),var(--blue));color:#07101c}
+.game-status{min-height:15px;margin-top:11px;color:var(--muted);font:10px monospace;text-align:center}
+.cover{position:absolute;inset:0;z-index:4;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;background:#090d14e8;text-align:center}
+.cover.hidden{display:none}
+.cover-title{font-size:25px;font-weight:900}
+.cover-text{max-width:290px;margin:7px 0 14px;color:var(--muted);font-size:11px}
+.piano-wrap{padding:18px 10px 13px;background:linear-gradient(#251b38,#0d0b14)}.keys{position:relative;display:flex;height:190px}.key{position:relative;flex:1;border:1px solid #9096a0;border-radius:0 0 8px 8px;background:linear-gradient(#fff,#d8dde5);color:#222;font:bold 11px monospace;display:flex;align-items:flex-end;justify-content:center;padding-bottom:12px;touch-action:none}.key:active,.key.on{background:#9edcff}.black{position:absolute;z-index:2;top:0;width:10%;height:112px;border:0;border-radius:0 0 6px 6px;background:linear-gradient(#20202b,#050508);color:#fff;padding-bottom:8px}.b1{left:10%}.b2{left:24.5%}.b3{left:53%}.b4{left:67.5%}.b5{left:82%}.now{text-align:center;margin-top:12px;color:#a9ddff;font:bold 12px monospace}</style>
+<link rel="stylesheet" href="../assets/game-shell.css">
+<link rel="stylesheet" href="../assets/hatorri-theme.css">
+</head>
+<body>
+<nav class="arcade-game-nav" aria-label="Navegação do jogo"><a href="../index.html">← Voltar ao arcade</a><span>HATORRI <strong>ARCADE</strong></span></nav>
+<div class="shell"><div class="game-card"><div class="game-head"><div><div class="game-brand">HATORRI MUSIC</div><div class="game-title">PIANO</div></div></div><div class="game-main"><div class="stage piano-wrap"><div class="keys"><button class="key" data-note="261.63">DÓ</button><button class="key" data-note="293.66">RÉ</button><button class="key" data-note="329.63">MI</button><button class="key" data-note="349.23">FÁ</button><button class="key" data-note="392.00">SOL</button><button class="key" data-note="440.00">LÁ</button><button class="key" data-note="493.88">SI</button><button class="key black b1" data-note="277.18">♯</button><button class="key black b2" data-note="311.13">♯</button><button class="key black b3" data-note="369.99">♯</button><button class="key black b4" data-note="415.30">♯</button><button class="key black b5" data-note="466.16">♯</button></div><div class="now" id="now">TOQUE EM UMA TECLA</div></div><div class="game-status">USE FONES E AUMENTE O VOLUME 🔊</div></div></div></div>
+<p class="arcade-game-note">Jogo local no navegador. Recordes ficam neste aparelho quando o armazenamento está disponível.</p>
+<script>
+
+const arcadeStorage = (() => {
+  const memory = new Map();
+  return {
+    getItem(key) {
+      key = String(key);
+      try { const value = globalThis.localStorage.getItem(key); if (value !== null) { memory.set(key, value); return value; } }
+      catch { /* Storage may be denied in an embedded browser. */ }
+      return memory.has(key) ? memory.get(key) : null;
+    },
+    setItem(key, value) {
+      key = String(key); value = String(value); memory.set(key, value);
+      try { globalThis.localStorage.setItem(key, value); } catch { /* Keep this page playable in memory. */ }
+    },
+    removeItem(key) {
+      key = String(key); memory.delete(key);
+      try { globalThis.localStorage.removeItem(key); } catch { /* No persistent storage. */ }
+    }
+  };
+})();
+
+
+
+const now=document.getElementById('now');let audio=null;function play(button){try{audio=audio||new(window.AudioContext||window.webkitAudioContext)();if(audio.state==='suspended')audio.resume();const osc=audio.createOscillator(),gain=audio.createGain();osc.type='triangle';osc.frequency.value=Number(button.dataset.note);gain.gain.setValueAtTime(.22,audio.currentTime);gain.gain.exponentialRampToValueAtTime(.001,audio.currentTime+.65);osc.connect(gain);gain.connect(audio.destination);osc.start();osc.stop(audio.currentTime+.66);button.classList.add('on');setTimeout(()=>button.classList.remove('on'),170);now.textContent=button.textContent==='♯'?'NOTA SUSTENIDA':button.textContent}catch(e){now.textContent='O áudio não foi liberado neste aparelho.'}}document.querySelectorAll('[data-note]').forEach(key=>{key.addEventListener('PointerEvent' in window?'pointerdown':'touchstart',e=>{e.preventDefault();play(key)},{passive:false})});
+
+
+// Native keyboard activation must also work on the recovered pointer controls.
+document.addEventListener('click', event => {
+  const button = event.target.closest?.('button');
+  if (event.detail !== 0 || !button || button.onclick || event.defaultPrevented) return;
+  const EventType = globalThis.PointerEvent || globalThis.MouseEvent;
+  if (EventType) button.dispatchEvent(new EventType('pointerdown', { bubbles: true, cancelable: true }));
+});
+
+</script>
+</body>
+</html>

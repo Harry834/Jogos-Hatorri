@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b1220">
+<title>2048 · Hatorri Arcade</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<style>
+
+:root{--bg:#10151f;--panel:#192131;--line:#33405a;--blue:#62b5ff;--purple:#9a7cff;--text:#f7f9ff;--muted:#aeb9cc}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+body{margin:0;background:transparent;color:var(--text);font-family:Arial,sans-serif;touch-action:manipulation}
+.shell{max-width:620px;margin:auto;padding:14px}
+.game-card{overflow:hidden;border:1px solid var(--line);border-radius:20px;background:linear-gradient(160deg,var(--panel),var(--bg));box-shadow:0 14px 38px #0008}
+.game-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 18px;border-bottom:1px solid var(--line)}
+.game-brand{color:var(--blue);font-size:9px;font-weight:800;letter-spacing:2px}
+.game-title{font-size:18px;font-weight:900;margin-top:3px}
+.scorebar{display:flex;gap:14px;text-align:center}
+.score-label{color:var(--muted);font-size:8px;font-weight:700;letter-spacing:1px}
+.score-value{font:800 18px monospace;margin-top:3px}
+.game-main{padding:15px}
+.stage{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:15px;background:#0b1018}
+.action-row{display:flex;gap:8px;justify-content:center;margin-top:12px}
+.game-button{min-height:44px;padding:0 15px;border:1px solid #ffffff26;border-radius:11px;background:#ffffff12;color:white;font-weight:800}
+.game-button:active{transform:scale(.96)}
+.game-button.primary{background:linear-gradient(135deg,var(--purple),var(--blue));color:#07101c}
+.game-status{min-height:15px;margin-top:11px;color:var(--muted);font:10px monospace;text-align:center}
+.cover{position:absolute;inset:0;z-index:4;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;background:#090d14e8;text-align:center}
+.cover.hidden{display:none}
+.cover-title{font-size:25px;font-weight:900}
+.cover-text{max-width:290px;margin:7px 0 14px;color:var(--muted);font-size:11px}
+
+.board{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:10px;aspect-ratio:1;background:#0d1520;touch-action:none;overscroll-behavior:contain}.tile{display:flex;align-items:center;justify-content:center;border-radius:11px;background:#ffffff0b;color:#f7f9ff;font:bold 25px monospace;transition:transform .12s,background .12s}.n2{background:#33445c}.n4{background:#3d5870}.n8{background:#97654a}.n16{background:#b85b45}.n32{background:#d04e4e}.n64{background:#e44737}.n128{background:#c79b38;font-size:21px}.n256{background:#daa62d;font-size:21px}.n512{background:#e6b720;font-size:21px}.n1024{background:#b96fe0;font-size:17px}.n2048{background:#56d9a0;color:#071710;font-size:17px;box-shadow:0 0 18px #56d9a088}.move-pad{display:grid;grid-template-columns:repeat(3,48px);grid-template-rows:repeat(2,42px);gap:6px;justify-content:center;margin-top:11px}.move-pad .game-button{min-height:42px;padding:0;font-size:17px}.move-up{grid-column:2}.move-left{grid-column:1;grid-row:2}.move-down{grid-column:2;grid-row:2}.move-right{grid-column:3;grid-row:2}
+</style>
+<link rel="stylesheet" href="../assets/game-shell.css">
+<link rel="stylesheet" href="../assets/hatorri-theme.css">
+</head>
+<body>
+<nav class="arcade-game-nav" aria-label="Navegação do jogo"><a href="../index.html">← Voltar ao arcade</a><span>HATORRI <strong>ARCADE</strong></span></nav>
+<div class="shell"><div class="game-card"><div class="game-head"><div><div class="game-brand">HATORRI ARCADE</div><div class="game-title">2048</div></div><div class="scorebar"><div><div class="score-label">PONTOS</div><div class="score-value" id="score">00000</div></div><div><div class="score-label">RECORDE</div><div class="score-value" id="best">00000</div></div></div></div><div class="game-main"><div class="stage"><div class="board" id="board"></div><div class="cover" id="cover"><div class="cover-title" id="coverTitle">2048</div><div class="cover-text" id="coverText">Deslize para juntar números iguais e chegar ao 2048.</div><button class="game-button primary" id="start">COMEÇAR</button></div></div><div class="move-pad"><button class="game-button move-up" data-move="up" aria-label="Mover para cima">▲</button><button class="game-button move-left" data-move="left" aria-label="Mover para a esquerda">◀</button><button class="game-button move-down" data-move="down" aria-label="Mover para baixo">▼</button><button class="game-button move-right" data-move="right" aria-label="Mover para a direita">▶</button></div><div class="action-row"><button class="game-button" id="undo">DESFAZER</button><button class="game-button" id="restart">REINICIAR</button></div><div class="game-status">DESLIZE NO TABULEIRO OU USE OS BOTÕES</div></div></div></div>
+
+<p class="arcade-game-note">Jogo local no navegador. Recordes ficam neste aparelho quando o armazenamento está disponível.</p>
+<script>
+
+const arcadeStorage = (() => {
+  const memory = new Map();
+  return {
+    getItem(key) {
+      key = String(key);
+      try { const value = globalThis.localStorage.getItem(key); if (value !== null) { memory.set(key, value); return value; } }
+      catch { /* Storage may be denied in an embedded browser. */ }
+      return memory.has(key) ? memory.get(key) : null;
+    },
+    setItem(key, value) {
+      key = String(key); value = String(value); memory.set(key, value);
+      try { globalThis.localStorage.setItem(key, value); } catch { /* Keep this page playable in memory. */ }
+    },
+    removeItem(key) {
+      key = String(key); memory.delete(key);
+      try { globalThis.localStorage.removeItem(key); } catch { /* No persistent storage. */ }
+    }
+  };
+})();
+
+
+
+const boardEl=document.getElementById('board'),scoreEl=document.getElementById('score'),bestEl=document.getElementById('best'),cover=document.getElementById('cover'),coverTitle=document.getElementById('coverTitle'),coverText=document.getElementById('coverText'),start=document.getElementById('start');let board=[],score=0,best=0,previous=null,touch=null;
+try{best=Number(arcadeStorage.getItem('hatorri_2048_best'))||0}catch(e){}const format=n=>String(n).padStart(5,'0');
+function emptyBoard(){return Array.from({length:4},()=>Array(4).fill(0))}function cells(){const free=[];for(let y=0;y<4;y++)for(let x=0;x<4;x++)if(!board[y][x])free.push([x,y]);return free}function addTile(){const free=cells();if(!free.length)return;const[x,y]=free[Math.floor(Math.random()*free.length)];board[y][x]=Math.random()<.9?2:4}
+function render(){boardEl.innerHTML='';for(const row of board)for(const value of row){const tile=document.createElement('div');tile.className='tile'+(value?' n'+Math.min(value,2048):'');tile.textContent=value||'';boardEl.appendChild(tile)}scoreEl.textContent=format(score);bestEl.textContent=format(best)}
+function compress(line){const values=line.filter(Boolean),result=[];for(let i=0;i<values.length;i++){if(values[i]===values[i+1]){const merged=values[i]*2;result.push(merged);score+=merged;i++}else result.push(values[i])}while(result.length<4)result.push(0);return result}
+function transpose(matrix){return matrix[0].map((_,i)=>matrix.map(row=>row[i]))}function move(dir){if(board.length!==4||!cover.classList.contains('hidden'))return;previous={board:board.map(row=>[...row]),score};const before=JSON.stringify(board);if(dir==='left')board=board.map(compress);if(dir==='right')board=board.map(row=>compress([...row].reverse()).reverse());if(dir==='up'){board=transpose(board).map(compress);board=transpose(board)}if(dir==='down'){board=transpose(board).map(row=>compress([...row].reverse()).reverse());board=transpose(board)}if(before===JSON.stringify(board)){previous=null;return}addTile();best=Math.max(best,score);try{arcadeStorage.setItem('hatorri_2048_best',best)}catch(e){}render();if(board.flat().includes(2048)){coverTitle.textContent='VOCÊ CONSEGUIU!';coverText.textContent='Chegou ao bloco 2048!';start.textContent='JOGAR NOVAMENTE';cover.classList.remove('hidden')}else if(!canMove()){coverTitle.textContent='FIM DE JOGO';coverText.textContent='Pontuação: '+score;start.textContent='TENTAR NOVAMENTE';cover.classList.remove('hidden')}}
+function canMove(){if(cells().length)return true;for(let y=0;y<4;y++)for(let x=0;x<4;x++)if(board[y][x]===board[y]?.[x+1]||board[y][x]===board[y+1]?.[x])return true;return false}function reset(){board=emptyBoard();score=0;previous=null;addTile();addTile();cover.classList.add('hidden');render()}
+function beginGesture(x,y,pointerId){touch={x,y};if(pointerId!==undefined)try{boardEl.setPointerCapture(pointerId)}catch(e){}}function endGesture(x,y){if(!touch)return;const dx=x-touch.x,dy=y-touch.y;touch=null;if(Math.max(Math.abs(dx),Math.abs(dy))<15)return;move(Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up'))}
+boardEl.addEventListener('pointerdown',e=>{e.preventDefault();beginGesture(e.clientX,e.clientY,e.pointerId)},{passive:false});boardEl.addEventListener('pointerup',e=>{e.preventDefault();endGesture(e.clientX,e.clientY)},{passive:false});boardEl.addEventListener('pointercancel',()=>{touch=null});boardEl.addEventListener('touchstart',e=>{e.preventDefault();const p=e.changedTouches[0];beginGesture(p.clientX,p.clientY)},{passive:false});boardEl.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});boardEl.addEventListener('touchend',e=>{e.preventDefault();const p=e.changedTouches[0];endGesture(p.clientX,p.clientY)},{passive:false});boardEl.addEventListener('touchcancel',()=>{touch=null});document.querySelectorAll('[data-move]').forEach(button=>button.addEventListener('pointerdown',e=>{e.preventDefault();move(button.dataset.move)}));document.addEventListener('keydown',e=>{const map={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'up',ArrowDown:'down'};if(map[e.key]){e.preventDefault();move(map[e.key])}});start.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();reset()});document.getElementById('restart').onclick=reset;document.getElementById('undo').onclick=()=>{if(!previous)return;board=previous.board;score=previous.score;previous=null;render()};render();
+
+
+// Native keyboard activation must also work on the recovered pointer controls.
+document.addEventListener('click', event => {
+  const button = event.target.closest?.('button');
+  if (event.detail !== 0 || !button || button.onclick || event.defaultPrevented) return;
+  const EventType = globalThis.PointerEvent || globalThis.MouseEvent;
+  if (EventType) button.dispatchEvent(new EventType('pointerdown', { bubbles: true, cancelable: true }));
+});
+
+</script>
+</body>
+</html>

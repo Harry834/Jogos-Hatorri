@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b1220">
+<title>Jogo da velha · Hatorri Arcade</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<style>
+
+:root{--bg:#10151f;--panel:#192131;--line:#33405a;--blue:#62b5ff;--purple:#9a7cff;--text:#f7f9ff;--muted:#aeb9cc}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+body{margin:0;background:transparent;color:var(--text);font-family:Arial,sans-serif;touch-action:manipulation}
+.shell{max-width:620px;margin:auto;padding:14px}
+.game-card{overflow:hidden;border:1px solid var(--line);border-radius:20px;background:linear-gradient(160deg,var(--panel),var(--bg));box-shadow:0 14px 38px #0008}
+.game-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 18px;border-bottom:1px solid var(--line)}
+.game-brand{color:var(--blue);font-size:9px;font-weight:800;letter-spacing:2px}
+.game-title{font-size:18px;font-weight:900;margin-top:3px}
+.scorebar{display:flex;gap:14px;text-align:center}
+.score-label{color:var(--muted);font-size:8px;font-weight:700;letter-spacing:1px}
+.score-value{font:800 18px monospace;margin-top:3px}
+.game-main{padding:15px}
+.stage{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:15px;background:#0b1018}
+.action-row{display:flex;gap:8px;justify-content:center;margin-top:12px}
+.game-button{min-height:44px;padding:0 15px;border:1px solid #ffffff26;border-radius:11px;background:#ffffff12;color:white;font-weight:800}
+.game-button:active{transform:scale(.96)}
+.game-button.primary{background:linear-gradient(135deg,var(--purple),var(--blue));color:#07101c}
+.game-status{min-height:15px;margin-top:11px;color:var(--muted);font:10px monospace;text-align:center}
+.cover{position:absolute;inset:0;z-index:4;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;background:#090d14e8;text-align:center}
+.cover.hidden{display:none}
+.cover-title{font-size:25px;font-weight:900}
+.cover-text{max-width:290px;margin:7px 0 14px;color:var(--muted);font-size:11px}
+
+.mode-row{display:flex;gap:8px;margin-bottom:11px}.mode-row button{flex:1}.selected{background:#62b5ff;color:#07101c}
+.grid{display:grid;grid-template-columns:repeat(3,1fr)}.cell{aspect-ratio:1;border:0;border-right:1px solid var(--line);border-bottom:1px solid var(--line);background:#0d1420;color:#f7f9ff;font:bold 52px Arial}
+.cell:nth-child(3n){border-right:0}.cell:nth-last-child(-n+3){border-bottom:0}.cell.o{color:#62b5ff}.cell.winner{background:#7f65ff33}
+</style>
+<link rel="stylesheet" href="../assets/game-shell.css">
+<link rel="stylesheet" href="../assets/hatorri-theme.css">
+</head>
+<body>
+<nav class="arcade-game-nav" aria-label="Navegação do jogo"><a href="../index.html">← Voltar ao arcade</a><span>HATORRI <strong>ARCADE</strong></span></nav>
+<div class="shell"><div class="game-card">
+<div class="game-head"><div><div class="game-brand">HATORRI ARCADE</div><div class="game-title">JOGO DA VELHA</div></div>
+<div class="scorebar"><div><div class="score-label">X</div><div class="score-value" id="sx">0</div></div><div><div class="score-label">EMPATE</div><div class="score-value" id="sd">0</div></div><div><div class="score-label">O</div><div class="score-value" id="so">0</div></div></div></div>
+<div class="game-main"><div class="mode-row"><button class="game-button selected" id="cpu">CONTRA O BOT</button><button class="game-button" id="duo">2 JOGADORES</button></div>
+<div class="stage"><div class="grid" id="grid"></div><div class="cover hidden" id="cover"><div class="cover-title" id="result"></div><div class="cover-text">Clique em “nova rodada” para a revanche.</div></div></div>
+<div class="action-row"><button class="game-button primary" id="new">NOVA RODADA</button></div><div class="game-status" id="status">SUA VEZ • VOCÊ É X</div>
+</div></div></div>
+
+<p class="arcade-game-note">Contra o bot ou 2 jogadores no mesmo aparelho. As partidas do site não usam o grupo do WhatsApp.</p>
+<script>
+
+const arcadeStorage = (() => {
+  const memory = new Map();
+  return {
+    getItem(key) {
+      key = String(key);
+      try { const value = globalThis.localStorage.getItem(key); if (value !== null) { memory.set(key, value); return value; } }
+      catch { /* Storage may be denied in an embedded browser. */ }
+      return memory.has(key) ? memory.get(key) : null;
+    },
+    setItem(key, value) {
+      key = String(key); value = String(value); memory.set(key, value);
+      try { globalThis.localStorage.setItem(key, value); } catch { /* Keep this page playable in memory. */ }
+    },
+    removeItem(key) {
+      key = String(key); memory.delete(key);
+      try { globalThis.localStorage.removeItem(key); } catch { /* No persistent storage. */ }
+    }
+  };
+})();
+
+
+const gameTimers = new Set();
+function gameSetTimeout(callback, delay) {
+  const id = setTimeout(() => { gameTimers.delete(id); callback(); }, delay);
+  gameTimers.add(id); return id;
+}
+function clearGameTimers() { for (const id of gameTimers) clearTimeout(id); gameTimers.clear(); }
+
+
+const grid=document.getElementById('grid'),statusEl=document.getElementById('status'),cover=document.getElementById('cover'),result=document.getElementById('result');
+const sx=document.getElementById('sx'),so=document.getElementById('so'),sd=document.getElementById('sd'),cpu=document.getElementById('cpu'),duo=document.getElementById('duo');
+const lines=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+let cells=Array(9).fill(''),turn='X',mode='cpu',ended=false,score={X:0,O:0,D:0};
+function outcome(){for(const line of lines){const [a,b,c]=line;if(cells[a]&&cells[a]===cells[b]&&cells[a]===cells[c])return{who:cells[a],line}}return cells.every(Boolean)?{who:'D',line:[]}:null}
+function render(win=[]){grid.innerHTML='';cells.forEach((value,index)=>{const button=document.createElement('button');button.className='cell'+(value==='O'?' o':'')+(win.includes(index)?' winner':'');button.textContent=value;button.addEventListener('pointerdown',e=>{e.preventDefault();play(index)});grid.appendChild(button)});sx.textContent=score.X;so.textContent=score.O;sd.textContent=score.D}
+function end(game){ended=true;score[game.who]++;render(game.line);result.textContent=game.who==='D'?'DEU VELHA 😅':game.who+' VENCEU!';cover.classList.remove('hidden');statusEl.textContent=result.textContent}
+function play(index,fromBot=false){if(ended||cells[index]||(mode==='cpu'&&turn==='O'&&!fromBot))return;cells[index]=turn;const game=outcome();if(game)return end(game);turn=turn==='X'?'O':'X';render();statusEl.textContent='VEZ DE '+turn;if(mode==='cpu'&&turn==='O')gameSetTimeout(botPlay,240)}
+function botPlay(){if(ended||mode!=='cpu'||turn!=='O')return;let chosen=-1;for(const target of ['O','X']){for(const line of lines){const values=line.map(i=>cells[i]);if(values.filter(v=>v===target).length===2&&values.includes('')){chosen=line[values.indexOf('')];break}}if(chosen>=0)break}if(chosen<0&&cells[4]==='')chosen=4;if(chosen<0){const free=cells.map((v,i)=>v?null:i).filter(v=>v!==null);chosen=free[Math.floor(Math.random()*free.length)]}play(chosen,true)}
+function reset(){clearGameTimers();cells=Array(9).fill('');turn='X';ended=false;cover.classList.add('hidden');statusEl.textContent=mode==='cpu'?'SUA VEZ • VOCÊ É X':'VEZ DO JOGADOR X';render()}
+function changeMode(next){mode=next;cpu.classList.toggle('selected',mode==='cpu');duo.classList.toggle('selected',mode==='duo');reset()}
+cpu.addEventListener('pointerdown',()=>changeMode('cpu'));duo.addEventListener('pointerdown',()=>changeMode('duo'));document.getElementById('new').addEventListener('pointerdown',reset);reset();
+
+
+// Native keyboard activation must also work on the recovered pointer controls.
+document.addEventListener('click', event => {
+  const button = event.target.closest?.('button');
+  if (event.detail !== 0 || !button || button.onclick || event.defaultPrevented) return;
+  const EventType = globalThis.PointerEvent || globalThis.MouseEvent;
+  if (EventType) button.dispatchEvent(new EventType('pointerdown', { bubbles: true, cancelable: true }));
+});
+
+</script>
+</body>
+</html>

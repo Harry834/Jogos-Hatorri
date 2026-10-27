@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b1220">
+<title>Xadrez simplificado · Hatorri Arcade</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<style>
+
+:root{--bg:#10151f;--panel:#192131;--line:#33405a;--blue:#62b5ff;--purple:#9a7cff;--text:#f7f9ff;--muted:#aeb9cc}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+body{margin:0;background:transparent;color:var(--text);font-family:Arial,sans-serif;touch-action:manipulation}
+.shell{max-width:620px;margin:auto;padding:14px}
+.game-card{overflow:hidden;border:1px solid var(--line);border-radius:20px;background:linear-gradient(160deg,var(--panel),var(--bg));box-shadow:0 14px 38px #0008}
+.game-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 18px;border-bottom:1px solid var(--line)}
+.game-brand{color:var(--blue);font-size:9px;font-weight:800;letter-spacing:2px}
+.game-title{font-size:18px;font-weight:900;margin-top:3px}
+.scorebar{display:flex;gap:14px;text-align:center}
+.score-label{color:var(--muted);font-size:8px;font-weight:700;letter-spacing:1px}
+.score-value{font:800 18px monospace;margin-top:3px}
+.game-main{padding:15px}
+.stage{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:15px;background:#0b1018}
+.action-row{display:flex;gap:8px;justify-content:center;margin-top:12px}
+.game-button{min-height:44px;padding:0 15px;border:1px solid #ffffff26;border-radius:11px;background:#ffffff12;color:white;font-weight:800}
+.game-button:active{transform:scale(.96)}
+.game-button.primary{background:linear-gradient(135deg,var(--purple),var(--blue));color:#07101c}
+.game-status{min-height:15px;margin-top:11px;color:var(--muted);font:10px monospace;text-align:center}
+.cover{position:absolute;inset:0;z-index:4;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;background:#090d14e8;text-align:center}
+.cover.hidden{display:none}
+.cover-title{font-size:25px;font-weight:900}
+.cover-text{max-width:290px;margin:7px 0 14px;color:var(--muted);font-size:11px}
+
+.chessboard{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));grid-template-rows:repeat(8,minmax(0,1fr));width:100%;aspect-ratio:1;overflow:hidden}.chess-square{position:relative;min-width:0;min-height:0;overflow:hidden;border:0;padding:0;font-size:clamp(22px,8vw,40px);line-height:1;display:flex;align-items:center;justify-content:center;text-shadow:0 2px 2px #0005}.chess-light{background:#d9c9ae}.chess-dark{background:#68758c}.chess-square.selected{box-shadow:inset 0 0 0 4px #ffcf4d}.chess-square.target:after{content:"";position:absolute;width:22%;height:22%;border-radius:50%;background:#3cff87a8}.chess-square.capture{box-shadow:inset 0 0 0 4px #ff6677}.thinking{animation:pulse .8s infinite alternate}.mode-row{display:flex;gap:8px;margin-bottom:11px}.mode-row button{flex:1}.mode-active{background:#62b5ff;color:#07101c}@keyframes pulse{to{opacity:.45}}
+</style>
+<link rel="stylesheet" href="../assets/game-shell.css">
+<link rel="stylesheet" href="../assets/hatorri-theme.css">
+</head>
+<body>
+<nav class="arcade-game-nav" aria-label="Navegação do jogo"><a href="../index.html">← Voltar ao arcade</a><span>HATORRI <strong>ARCADE</strong></span></nav>
+<div class="shell"><div class="game-card">
+<div class="game-head"><div><div class="game-brand">HATORRI ARCADE</div><div class="game-title">XADREZ</div></div><div class="scorebar"><div><div class="score-label">VOCÊ</div><div class="score-value">♔</div></div><div><div class="score-label">BOT</div><div class="score-value">♚</div></div></div></div>
+<div class="game-main"><div class="mode-row"><button class="game-button mode-active" id="vsBot">CONTRA O BOT</button><button class="game-button" id="local">2 JOGADORES</button></div><div class="stage"><div class="chessboard" id="board"></div><div class="cover hidden" id="cover"><div class="cover-title" id="result"></div><div class="cover-text" id="resultText"></div></div></div>
+<div class="action-row"><button class="game-button primary" id="restart">NOVA PARTIDA</button></div><div class="game-status" id="status">SUA VEZ • PEÇAS BRANCAS</div></div></div></div>
+
+<p class="arcade-game-note">Xadrez simplificado: sem roque e sem en passant; promoção automática a dama. Contra o bot ou 2 jogadores no mesmo aparelho.</p>
+<script>
+
+const arcadeStorage = (() => {
+  const memory = new Map();
+  return {
+    getItem(key) {
+      key = String(key);
+      try { const value = globalThis.localStorage.getItem(key); if (value !== null) { memory.set(key, value); return value; } }
+      catch { /* Storage may be denied in an embedded browser. */ }
+      return memory.has(key) ? memory.get(key) : null;
+    },
+    setItem(key, value) {
+      key = String(key); value = String(value); memory.set(key, value);
+      try { globalThis.localStorage.setItem(key, value); } catch { /* Keep this page playable in memory. */ }
+    },
+    removeItem(key) {
+      key = String(key); memory.delete(key);
+      try { globalThis.localStorage.removeItem(key); } catch { /* No persistent storage. */ }
+    }
+  };
+})();
+
+
+const gameTimers = new Set();
+function gameSetTimeout(callback, delay) {
+  const id = setTimeout(() => { gameTimers.delete(id); callback(); }, delay);
+  gameTimers.add(id); return id;
+}
+function clearGameTimers() { for (const id of gameTimers) clearTimeout(id); gameTimers.clear(); }
+
+
+const boardEl=document.getElementById('board'),statusEl=document.getElementById('status'),cover=document.getElementById('cover'),resultEl=document.getElementById('result'),resultText=document.getElementById('resultText'),vsBot=document.getElementById('vsBot'),local=document.getElementById('local');
+const icons={wK:'♔',wQ:'♕',wR:'♖',wB:'♗',wN:'♘',wP:'♙',bK:'♚',bQ:'♛',bR:'♜',bB:'♝',bN:'♞',bP:'♟'},values={P:100,N:320,B:330,R:500,Q:900,K:20000};
+let board,turn='w',selected=null,targets=[],over=false,mode='bot';
+const inside=(r,c)=>r>=0&&r<8&&c>=0&&c<8,copy=b=>b.map(row=>row.map(p=>p?{c:p.c,t:p.t,m:p.m}:null));
+function setup(){clearGameTimers();boardEl.classList.remove('thinking');const back=['R','N','B','Q','K','B','N','R'];board=Array.from({length:8},()=>Array(8).fill(null));for(let c=0;c<8;c++){board[0][c]={c:'b',t:back[c],m:false};board[1][c]={c:'b',t:'P',m:false};board[6][c]={c:'w',t:'P',m:false};board[7][c]={c:'w',t:back[c],m:false}}turn='w';selected=null;targets=[];over=false;cover.classList.add('hidden');statusEl.textContent='SUA VEZ • PEÇAS BRANCAS';render()}
+function rawMoves(b,r,c,attacks=false){const p=b[r][c];if(!p)return[];const out=[],push=(nr,nc)=>{if(!inside(nr,nc))return false;const q=b[nr][nc];if(!q){out.push({fr:r,fc:c,tr:nr,tc:nc});return true}if(q.c!==p.c)out.push({fr:r,fc:c,tr:nr,tc:nc,capture:true});return false};
+if(p.t==='P'){const d=p.c==='w'?-1:1,start=p.c==='w'?6:1;if(attacks){for(const dc of[-1,1])if(inside(r+d,c+dc))out.push({fr:r,fc:c,tr:r+d,tc:c+dc})}else{if(inside(r+d,c)&&!b[r+d][c]){out.push({fr:r,fc:c,tr:r+d,tc:c});if(r===start&&!b[r+2*d][c])out.push({fr:r,fc:c,tr:r+2*d,tc:c})}for(const dc of[-1,1])if(inside(r+d,c+dc)&&b[r+d][c+dc]&&b[r+d][c+dc].c!==p.c)out.push({fr:r,fc:c,tr:r+d,tc:c+dc,capture:true})}}
+if(p.t==='N')for(const[dr,dc]of[[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]])push(r+dr,c+dc);
+if(p.t==='K')for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++)if(dr||dc)push(r+dr,c+dc);
+if('RBQ'.includes(p.t)){const dirs=p.t==='B'?[]:[[1,0],[-1,0],[0,1],[0,-1]];for(const[dr,dc]of dirs){let nr=r+dr,nc=c+dc;while(inside(nr,nc)){if(!push(nr,nc))break;nr+=dr;nc+=dc}}}
+if('BQ'.includes(p.t))for(const[dr,dc]of[[1,1],[1,-1],[-1,1],[-1,-1]]){let nr=r+dr,nc=c+dc;while(inside(nr,nc)){if(!push(nr,nc))break;nr+=dr;nc+=dc}}
+return out}
+function locateKing(b,color){for(let r=0;r<8;r++)for(let c=0;c<8;c++)if(b[r][c]?.c===color&&b[r][c].t==='K')return[r,c];return null}
+function attacked(b,r,c,by){for(let pr=0;pr<8;pr++)for(let pc=0;pc<8;pc++){const p=b[pr][pc];if(p?.c===by&&rawMoves(b,pr,pc,p.t==='P').some(m=>m.tr===r&&m.tc===c))return true}return false}
+function apply(b,m){const p=b[m.fr][m.fc];b[m.tr][m.tc]=p;b[m.fr][m.fc]=null;p.m=true;if(p.t==='P'&&(m.tr===0||m.tr===7))p.t='Q'}
+function legalMoves(b,color){const list=[];for(let r=0;r<8;r++)for(let c=0;c<8;c++)if(b[r][c]?.c===color)for(const m of rawMoves(b,r,c)){const test=copy(b);apply(test,m);const king=locateKing(test,color);if(king&&!attacked(test,king[0],king[1],color==='w'?'b':'w'))list.push(m)}return list}
+function evaluate(b){let sum=0;for(let r=0;r<8;r++)for(let c=0;c<8;c++){const p=b[r][c];if(p)sum+=(p.c==='b'?1:-1)*(values[p.t]+(p.t==='P'?(p.c==='b'?r:7-r)*6:0))}return sum}
+function chooseBot(){if(over||mode!=='bot'||turn!=='b')return;const moves=legalMoves(board,'b');if(!moves.length)return finishGame('b');let bestScore=-Infinity,best=[];for(const m of moves){const test=copy(board),taken=test[m.tr][m.tc];apply(test,m);let worst=Infinity;const replies=legalMoves(test,'w');const sample=replies.length>26?replies.slice(0,26):replies;for(const reply of sample){const after=copy(test);apply(after,reply);worst=Math.min(worst,evaluate(after))}const score=(replies.length?worst:evaluate(test)+10000)+(taken?values[taken.t]*.08:0)+Math.random()*2;if(score>bestScore){bestScore=score;best=[m]}else if(Math.abs(score-bestScore)<1)best.push(m)}apply(board,best[Math.floor(Math.random()*best.length)]);turn='w';selected=null;targets=[];checkState();render()}
+function click(r,c){if(over||(mode==='bot'&&turn==='b'))return;if(selected){const m=targets.find(x=>x.tr===r&&x.tc===c);if(m){apply(board,m);turn=turn==='w'?'b':'w';selected=null;targets=[];render();if(!checkState())return;if(mode==='bot'&&turn==='b'){statusEl.textContent='BOT PENSANDO...';boardEl.classList.add('thinking');gameSetTimeout(()=>{boardEl.classList.remove('thinking');chooseBot()},420)}return}}if(board[r][c]?.c===turn){selected=[r,c];targets=legalMoves(board,turn).filter(m=>m.fr===r&&m.fc===c);statusEl.textContent=targets.length?'ESCOLHA O DESTINO':'ESSA PEÇA NÃO TEM JOGADA';render()}}
+function checkState(){const moves=legalMoves(board,turn),king=locateKing(board,turn),check=king&&attacked(board,king[0],king[1],turn==='w'?'b':'w');if(!moves.length){finishGame(turn);return false}if(mode==='local')statusEl.textContent=check?(turn==='w'?'BRANCAS EM XEQUE':'PRETAS EM XEQUE'):(turn==='w'?'VEZ DAS BRANCAS':'VEZ DAS PRETAS');else statusEl.textContent=turn==='w'?(check?'VOCÊ ESTÁ EM XEQUE':'SUA VEZ • PEÇAS BRANCAS'):(check?'XEQUE NO BOT':'BOT PENSANDO...');return true}
+function finishGame(stuck){over=true;const king=locateKing(board,stuck),check=king&&attacked(board,king[0],king[1],stuck==='w'?'b':'w');resultEl.textContent=check?(mode==='local'?(stuck==='w'?'PRETAS VENCERAM!':'BRANCAS VENCERAM!'):(stuck==='w'?'XEQUE-MATE':'VOCÊ VENCEU! 🎉')):'EMPATE';resultText.textContent=check?'A partida terminou em xeque-mate.':'O jogador da vez ficou sem jogadas.';cover.classList.remove('hidden');statusEl.textContent=resultEl.textContent}
+function render(){boardEl.innerHTML='';for(let r=0;r<8;r++)for(let c=0;c<8;c++){const sq=document.createElement('button');sq.className='chess-square '+((r+c)%2?'chess-dark':'chess-light');if(selected&&selected[0]===r&&selected[1]===c)sq.classList.add('selected');const target=targets.find(m=>m.tr===r&&m.tc===c);if(target)sq.classList.add(board[r][c]?'capture':'target');const p=board[r][c];if(p)sq.textContent=icons[p.c+p.t];sq.addEventListener('pointerdown',e=>{e.preventDefault();click(r,c)});boardEl.appendChild(sq)}}
+function setMode(next){mode=next;vsBot.classList.toggle('mode-active',mode==='bot');local.classList.toggle('mode-active',mode==='local');setup()}
+vsBot.addEventListener('pointerdown',()=>setMode('bot'));local.addEventListener('pointerdown',()=>setMode('local'));document.getElementById('restart').addEventListener('pointerdown',setup);setup();
+
+
+// Native keyboard activation must also work on the recovered pointer controls.
+document.addEventListener('click', event => {
+  const button = event.target.closest?.('button');
+  if (event.detail !== 0 || !button || button.onclick || event.defaultPrevented) return;
+  const EventType = globalThis.PointerEvent || globalThis.MouseEvent;
+  if (EventType) button.dispatchEvent(new EventType('pointerdown', { bubbles: true, cancelable: true }));
+});
+
+</script>
+</body>
+</html>

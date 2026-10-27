@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b1220">
+<title>Cobrinha · Hatorri Arcade</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<style>
+
+:root{--bg:#10151f;--panel:#192131;--line:#33405a;--blue:#62b5ff;--purple:#9a7cff;--text:#f7f9ff;--muted:#aeb9cc}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+body{margin:0;background:transparent;color:var(--text);font-family:Arial,sans-serif;touch-action:manipulation}
+.shell{max-width:620px;margin:auto;padding:14px}
+.game-card{overflow:hidden;border:1px solid var(--line);border-radius:20px;background:linear-gradient(160deg,var(--panel),var(--bg));box-shadow:0 14px 38px #0008}
+.game-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 18px;border-bottom:1px solid var(--line)}
+.game-brand{color:var(--blue);font-size:9px;font-weight:800;letter-spacing:2px}
+.game-title{font-size:18px;font-weight:900;margin-top:3px}
+.scorebar{display:flex;gap:14px;text-align:center}
+.score-label{color:var(--muted);font-size:8px;font-weight:700;letter-spacing:1px}
+.score-value{font:800 18px monospace;margin-top:3px}
+.game-main{padding:15px}
+.stage{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:15px;background:#0b1018}
+.action-row{display:flex;gap:8px;justify-content:center;margin-top:12px}
+.game-button{min-height:44px;padding:0 15px;border:1px solid #ffffff26;border-radius:11px;background:#ffffff12;color:white;font-weight:800}
+.game-button:active{transform:scale(.96)}
+.game-button.primary{background:linear-gradient(135deg,var(--purple),var(--blue));color:#07101c}
+.game-status{min-height:15px;margin-top:11px;color:var(--muted);font:10px monospace;text-align:center}
+.cover{position:absolute;inset:0;z-index:4;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;background:#090d14e8;text-align:center}
+.cover.hidden{display:none}
+.cover-title{font-size:25px;font-weight:900}
+.cover-text{max-width:290px;margin:7px 0 14px;color:var(--muted);font-size:11px}
+
+.snake-canvas{display:block;width:100%;aspect-ratio:1;background:#0a1913;box-shadow:inset 0 0 34px #000b,inset 0 0 0 2px #7eff9b20;touch-action:none;user-select:none}
+.pad{display:grid;grid-template-columns:repeat(3,58px);grid-template-rows:repeat(2,49px);gap:7px;justify-content:center;margin-top:12px;touch-action:manipulation}.pad .game-button{min-height:49px;padding:0;font-size:20px;user-select:none;-webkit-tap-highlight-color:transparent}.pad .game-button:active{transform:scale(.9);filter:brightness(1.3)}.up{grid-column:2}.left{grid-column:1;grid-row:2}.down{grid-column:2;grid-row:2}.right{grid-column:3;grid-row:2}
+</style>
+<link rel="stylesheet" href="../assets/game-shell.css">
+<link rel="stylesheet" href="../assets/hatorri-theme.css">
+</head>
+<body>
+<nav class="arcade-game-nav" aria-label="Navegação do jogo"><a href="../index.html">← Voltar ao arcade</a><span>HATORRI <strong>ARCADE</strong></span></nav>
+<div class="shell"><div class="game-card">
+<div class="game-head"><div><div class="game-brand">HATORRI ARCADE</div><div class="game-title">COBRINHA</div></div>
+<div class="scorebar"><div><div class="score-label">PONTOS</div><div class="score-value" id="score">000</div></div><div><div class="score-label">RECORDE</div><div class="score-value" id="best">000</div></div></div></div>
+<div class="game-main"><div class="stage" id="stage"><canvas class="snake-canvas" id="snakeCanvas" width="512" height="512"></canvas>
+<div class="cover" id="cover"><div class="cover-title" id="coverTitle">COBRINHA</div><div class="cover-text" id="coverText">Use as setas ou deslize na pista. Coma as frutas e não morda o próprio rabo! 🍎</div><button class="game-button primary" id="start">COMEÇAR</button></div></div>
+<div class="pad"><button class="game-button up" data-dir="up" aria-label="Mover para cima">▲</button><button class="game-button left" data-dir="left" aria-label="Mover para a esquerda">◀</button><button class="game-button down" data-dir="down" aria-label="Mover para baixo">▼</button><button class="game-button right" data-dir="right" aria-label="Mover para a direita">▶</button></div>
+<div class="game-status" id="status">USE AS SETAS OU DESLIZE PARA JOGAR</div></div></div></div>
+
+<p class="arcade-game-note">Jogo local no navegador. Recordes ficam neste aparelho quando o armazenamento está disponível.</p>
+<script>
+
+const arcadeStorage = (() => {
+  const memory = new Map();
+  return {
+    getItem(key) {
+      key = String(key);
+      try { const value = globalThis.localStorage.getItem(key); if (value !== null) { memory.set(key, value); return value; } }
+      catch { /* Storage may be denied in an embedded browser. */ }
+      return memory.has(key) ? memory.get(key) : null;
+    },
+    setItem(key, value) {
+      key = String(key); value = String(value); memory.set(key, value);
+      try { globalThis.localStorage.setItem(key, value); } catch { /* Keep this page playable in memory. */ }
+    },
+    removeItem(key) {
+      key = String(key); memory.delete(key);
+      try { globalThis.localStorage.removeItem(key); } catch { /* No persistent storage. */ }
+    }
+  };
+})();
+
+
+
+const SIZE=16,CELL=32,canvas=document.getElementById('snakeCanvas'),ctx=canvas.getContext('2d'),stage=document.getElementById('stage'),scoreEl=document.getElementById('score'),bestEl=document.getElementById('best'),statusEl=document.getElementById('status');
+const cover=document.getElementById('cover'),coverTitle=document.getElementById('coverTitle'),coverText=document.getElementById('coverText'),start=document.getElementById('start');
+const MOVE_DELAY_MS=185;
+let snake=[],previousSnake=[],food={x:11,y:8},direction={x:1,y:0},directionQueue=[],score=0,best=0,running=false,timer=null,touchStart=null,lastTickAt=performance.now(),animationId=null;
+try{best=Number(arcadeStorage.getItem('hatorri_cobrinha_recorde'))||0}catch(e){best=0}
+const format=n=>String(n).padStart(3,'0'),mix=(a,b,t)=>a+(b-a)*t;
+function updateInfo(){scoreEl.textContent=format(score);bestEl.textContent=format(best);statusEl.textContent=running?'RITMO NORMAL • TAMANHO '+snake.length:'USE AS SETAS OU DESLIZE PARA JOGAR'}
+function drawBackground(){const gradient=ctx.createRadialGradient(256,230,20,256,256,360);gradient.addColorStop(0,'#193b2e');gradient.addColorStop(.55,'#10281f');gradient.addColorStop(1,'#07130e');ctx.fillStyle=gradient;ctx.fillRect(0,0,512,512);ctx.strokeStyle='#c8ffe407';ctx.lineWidth=1;for(let i=1;i<SIZE;i++){ctx.beginPath();ctx.moveTo(i*CELL,0);ctx.lineTo(i*CELL,512);ctx.stroke();ctx.beginPath();ctx.moveTo(0,i*CELL);ctx.lineTo(512,i*CELL);ctx.stroke()}}
+function interpolatedSnake(progress){return snake.map((part,index)=>{const old=previousSnake[index]||previousSnake[previousSnake.length-1]||part;const wrapped=Math.abs(part.x-old.x)>1||Math.abs(part.y-old.y)>1;return wrapped?part:{x:mix(old.x,part.x,progress),y:mix(old.y,part.y,progress)}})}
+function drawSnake(parts){if(!parts.length)return;ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle='#3ec56f';ctx.lineWidth=CELL*.7;ctx.beginPath();for(let i=parts.length-1;i>=0;i--){const x=parts[i].x*CELL+CELL/2,y=parts[i].y*CELL+CELL/2;i===parts.length-1?ctx.moveTo(x,y):ctx.lineTo(x,y)}ctx.stroke();ctx.strokeStyle='#8ff2a8';ctx.lineWidth=CELL*.18;ctx.globalAlpha=.42;ctx.stroke();ctx.globalAlpha=1;const head=parts[0],hx=head.x*CELL+CELL/2,hy=head.y*CELL+CELL/2;ctx.fillStyle='#9ff06d';ctx.beginPath();ctx.arc(hx,hy,CELL*.4,0,Math.PI*2);ctx.fill();const sideX=direction.y*.2*CELL,sideY=-direction.x*.2*CELL,frontX=direction.x*.2*CELL,frontY=direction.y*.2*CELL;ctx.fillStyle='#fff';for(const side of[-1,1]){ctx.beginPath();ctx.arc(hx+frontX+sideX*side,hy+frontY+sideY*side,CELL*.1,0,Math.PI*2);ctx.fill();ctx.fillStyle='#10251a';ctx.beginPath();ctx.arc(hx+frontX*1.25+sideX*side,hy+frontY*1.25+sideY*side,CELL*.05,0,Math.PI*2);ctx.fill();ctx.fillStyle='#fff'}}
+function drawFood(now){const pulse=1+Math.sin(now/160)*.08,x=food.x*CELL+CELL/2,y=food.y*CELL+CELL/2;ctx.save();ctx.translate(x,y);ctx.scale(pulse,pulse);ctx.shadowColor='#ff476d';ctx.shadowBlur=12;ctx.fillStyle='#ef3e5d';ctx.beginPath();ctx.arc(0,2,CELL*.3,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;ctx.fillStyle='#8ee86c';ctx.beginPath();ctx.ellipse(5,-9,7,3,-.5,0,Math.PI*2);ctx.fill();ctx.restore()}
+function render(now){drawBackground();const progress=running?Math.min(1,(now-lastTickAt)/MOVE_DELAY_MS):1;drawFood(now);drawSnake(interpolatedSnake(progress));animationId=requestAnimationFrame(render)}
+function placeFood(){const free=[];for(let y=0;y<SIZE;y++)for(let x=0;x<SIZE;x++)if(!snake.some(p=>p.x===x&&p.y===y))free.push({x,y});if(!free.length)return finish(true);food=free[Math.floor(Math.random()*free.length)]}
+function setDirection(name){const dirs={up:{x:0,y:-1},down:{x:0,y:1},left:{x:-1,y:0},right:{x:1,y:0}},chosen=dirs[name],base=directionQueue.length?directionQueue[directionQueue.length-1]:direction;if(!chosen||chosen.x===base.x&&chosen.y===base.y||chosen.x===-base.x&&chosen.y===-base.y||directionQueue.length>=2)return;directionQueue.push(chosen)}
+function schedule(){if(timer)clearTimeout(timer);timer=setTimeout(tick,MOVE_DELAY_MS)}
+function tick(){if(!running)return;if(directionQueue.length)direction=directionQueue.shift();const head={x:snake[0].x+direction.x,y:snake[0].y+direction.y};
+if(head.x<0||head.x>=SIZE||head.y<0||head.y>=SIZE||snake.some(part=>part.x===head.x&&part.y===head.y))return finish(false);
+previousSnake=snake.map(part=>({...part}));snake.unshift(head);if(head.x===food.x&&head.y===food.y){score++;if(score>best)best=score;placeFood()}else snake.pop();lastTickAt=performance.now();updateInfo();schedule()}
+function reset(){snake=[{x:7,y:8},{x:6,y:8},{x:5,y:8}];previousSnake=snake.map(part=>({...part}));food={x:11,y:8};direction={x:1,y:0};directionQueue=[];score=0;running=true;lastTickAt=performance.now();cover.classList.add('hidden');placeFood();updateInfo();schedule()}
+function finish(won){running=false;if(timer)clearTimeout(timer);timer=null;best=Math.max(best,score);try{arcadeStorage.setItem('hatorri_cobrinha_recorde',String(best))}catch(e){}updateInfo();coverTitle.textContent=won?'VOCÊ ZEROU! 🎉':'FIM DE JOGO';coverText.textContent='Pontuação: '+format(score)+' • Recorde: '+format(best);start.textContent='JOGAR NOVAMENTE';cover.classList.remove('hidden')}
+document.querySelectorAll('[data-dir]').forEach(button=>{const command=event=>{event.preventDefault();event.stopPropagation();setDirection(button.dataset.dir)};button.addEventListener('pointerdown',command,{passive:false});button.addEventListener('click',event=>event.preventDefault())});
+start.addEventListener('pointerdown',event=>{event.preventDefault();event.stopPropagation();reset()});
+stage.addEventListener('pointerdown',event=>{touchStart={x:event.clientX,y:event.clientY}});
+stage.addEventListener('pointerup',event=>{if(!touchStart)return;const dx=event.clientX-touchStart.x,dy=event.clientY-touchStart.y;touchStart=null;if(Math.max(Math.abs(dx),Math.abs(dy))<12)return;setDirection(Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up'))});
+document.addEventListener('keydown',event=>{const keys={ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right'};if(keys[event.key]){event.preventDefault();setDirection(keys[event.key])}});
+updateInfo();animationId=requestAnimationFrame(render);
+
+
+// Native keyboard activation must also work on the recovered pointer controls.
+document.addEventListener('click', event => {
+  const button = event.target.closest?.('button');
+  if (event.detail !== 0 || !button || button.onclick || event.defaultPrevented) return;
+  const EventType = globalThis.PointerEvent || globalThis.MouseEvent;
+  if (EventType) button.dispatchEvent(new EventType('pointerdown', { bubbles: true, cancelable: true }));
+});
+
+</script>
+</body>
+</html>

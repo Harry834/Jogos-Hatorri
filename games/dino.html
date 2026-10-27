@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b1220">
+<title>Dino Runner · Hatorri Arcade</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<style>
+
+:root{--bg:#10151f;--panel:#192131;--line:#33405a;--blue:#62b5ff;--purple:#9a7cff;--text:#f7f9ff;--muted:#aeb9cc}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+body{margin:0;background:transparent;color:var(--text);font-family:Arial,sans-serif;touch-action:manipulation}
+.shell{max-width:620px;margin:auto;padding:14px}
+.game-card{overflow:hidden;border:1px solid var(--line);border-radius:20px;background:linear-gradient(160deg,var(--panel),var(--bg));box-shadow:0 14px 38px #0008}
+.game-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 18px;border-bottom:1px solid var(--line)}
+.game-brand{color:var(--blue);font-size:9px;font-weight:800;letter-spacing:2px}
+.game-title{font-size:18px;font-weight:900;margin-top:3px}
+.scorebar{display:flex;gap:14px;text-align:center}
+.score-label{color:var(--muted);font-size:8px;font-weight:700;letter-spacing:1px}
+.score-value{font:800 18px monospace;margin-top:3px}
+.game-main{padding:15px}
+.stage{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:15px;background:#0b1018}
+.action-row{display:flex;gap:8px;justify-content:center;margin-top:12px}
+.game-button{min-height:44px;padding:0 15px;border:1px solid #ffffff26;border-radius:11px;background:#ffffff12;color:white;font-weight:800}
+.game-button:active{transform:scale(.96)}
+.game-button.primary{background:linear-gradient(135deg,var(--purple),var(--blue));color:#07101c}
+.game-status{min-height:15px;margin-top:11px;color:var(--muted);font:10px monospace;text-align:center}
+.cover{position:absolute;inset:0;z-index:4;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;background:#090d14e8;text-align:center}
+.cover.hidden{display:none}
+.cover-title{font-size:25px;font-weight:900}
+.cover-text{max-width:290px;margin:7px 0 14px;color:var(--muted);font-size:11px}
+
+.track{position:relative;height:218px;overflow:hidden;background:linear-gradient(#172a43,#0b111b);border:1px solid #66809a40;border-radius:13px;box-shadow:inset 0 0 32px #0008}
+#gameCanvas{display:none;width:100%;height:218px}.canvas-mode #gameCanvas{display:block}.canvas-mode .scene{display:none}
+.moon{position:absolute;right:24px;top:19px;width:28px;height:28px;border-radius:50%;background:#f2f6ff;box-shadow:0 0 17px #8fc7ff88}
+.star{position:absolute;width:2px;height:2px;border-radius:50%;background:#fff9;box-shadow:43px 17px #fff7,91px -8px #fff8,151px 22px #fff6,214px 4px #fff8}
+.cloud{position:absolute;width:45px;height:10px;border-radius:20px;background:#ffffff27;animation:cloud-drift 12s linear infinite}.cloud:before,.cloud:after{content:"";position:absolute;border-radius:50%;background:#ffffff27}.cloud:before{width:18px;height:18px;left:7px;bottom:0}.cloud:after{width:23px;height:23px;right:5px;bottom:0}.cloud.two{animation-duration:17s;animation-delay:-8s;transform:scale(.72)}
+.mountains{position:absolute;left:0;right:0;bottom:27px;height:65px;background:linear-gradient(135deg,transparent 0 12%,#172236 12% 27%,transparent 27% 34%,#1b2940 34% 53%,transparent 53% 61%,#152136 61% 80%,transparent 80%);opacity:.72}
+.ground{position:absolute;left:0;right:0;bottom:25px;border-top:2px dashed #75839a}.ground:after{content:"";position:absolute;left:0;right:0;top:9px;height:2px;background:repeating-linear-gradient(90deg,#ffffff24 0 15px,transparent 15px 34px)}
+.dino{position:absolute;left:38px;bottom:27px;width:34px;height:37px;z-index:2;transition:bottom .04s linear;filter:drop-shadow(0 3px 2px #0005)}.dino-body{position:absolute;left:6px;bottom:6px;width:21px;height:22px;border-radius:55% 46% 40% 43%;background:linear-gradient(145deg,#bff2cf,#54b986)}.dino-head{position:absolute;left:18px;top:0;width:17px;height:18px;border-radius:58% 68% 42% 45%;background:linear-gradient(145deg,#d0f8d9,#62c28d)}.dino-head:before{content:"";position:absolute;right:-3px;bottom:1px;width:11px;height:7px;border-radius:0 65% 55% 50%;background:#62c28d}.dino-head:after{content:"";position:absolute;right:3px;top:4px;width:4px;height:4px;border:1px solid #eaffef;border-radius:50%;background:#10251a}.dino-tail{position:absolute;left:0;bottom:13px;width:14px;height:9px;clip-path:polygon(0 50%,100% 0,100% 100%);background:#65c38e}.leg{position:absolute;bottom:0;width:6px;height:11px;border-radius:4px;background:#63c18c;transform-origin:top center;animation:run-leg .18s ease-in-out infinite}.leg:after{content:"";position:absolute;bottom:0;width:9px;height:4px;border-radius:5px;background:#92dfad}.leg-a{left:9px}.leg-b{left:22px;animation-direction:reverse}.dino.jumping .leg{animation-play-state:paused;transform:rotate(22deg)}
+.cactus{position:absolute;bottom:27px;width:12px;border-radius:3px 3px 0 0;background:#d06b75}.cactus:before{content:"";position:absolute;left:-5px;top:9px;width:7px;height:5px;border-radius:3px;background:#d06b75}
+.jump-tip{position:absolute;left:0;right:0;top:8px;text-align:center;color:#ffffff78;font:bold 9px monospace;letter-spacing:.8px}
+@keyframes cloud-drift{from{left:110%}to{left:-30%}}
+@keyframes run-leg{from{transform:rotate(24deg) translateY(0)}to{transform:rotate(-24deg) translateY(2px)}}
+</style>
+<link rel="stylesheet" href="../assets/game-shell.css">
+<link rel="stylesheet" href="../assets/hatorri-theme.css">
+</head>
+<body>
+<nav class="arcade-game-nav" aria-label="Navegação do jogo"><a href="../index.html">← Voltar ao arcade</a><span>HATORRI <strong>ARCADE</strong></span></nav>
+<div class="shell"><div class="game-card">
+<div class="game-head"><div><div class="game-brand">NÍVEL DINO</div><div class="game-title">DINO RUNNER</div></div><div class="scorebar"><div><div class="score-label">PONTOS</div><div class="score-value" id="score">00000</div></div><div><div class="score-label">RECORDE</div><div class="score-value" id="best">00000</div></div></div></div>
+<div class="game-main"><div class="stage track" id="track"><canvas id="gameCanvas" width="560" height="218"></canvas>
+<div class="scene"><div class="moon"></div><div class="star" style="left:38px;top:31px"></div><div class="cloud" style="top:57px"></div><div class="cloud two" style="top:91px"></div><div class="jump-tip">TOQUE PARA PULAR</div><div class="mountains"></div><div class="ground"></div>
+<div class="dino" id="dino"><div class="dino-tail"></div><div class="dino-body"></div><div class="dino-head"></div><div class="leg leg-a"></div><div class="leg leg-b"></div></div></div>
+<div class="cover" id="cover"><div class="cover-title" id="coverTitle">DINO RUNNER</div><div class="cover-text" id="coverText">Pule os cactos, acelere a corrida e bata seu recorde!</div><button class="game-button primary" id="start">COMEÇAR</button></div></div>
+<div class="game-status" id="status">BEST 00000 • VELOCIDADE 1.0x</div></div></div></div>
+
+<p class="arcade-game-note">Jogo local no navegador. Recordes ficam neste aparelho quando o armazenamento está disponível.</p>
+<script>
+
+const arcadeStorage = (() => {
+  const memory = new Map();
+  return {
+    getItem(key) {
+      key = String(key);
+      try { const value = globalThis.localStorage.getItem(key); if (value !== null) { memory.set(key, value); return value; } }
+      catch { /* Storage may be denied in an embedded browser. */ }
+      return memory.has(key) ? memory.get(key) : null;
+    },
+    setItem(key, value) {
+      key = String(key); value = String(value); memory.set(key, value);
+      try { globalThis.localStorage.setItem(key, value); } catch { /* Keep this page playable in memory. */ }
+    },
+    removeItem(key) {
+      key = String(key); memory.delete(key);
+      try { globalThis.localStorage.removeItem(key); } catch { /* No persistent storage. */ }
+    }
+  };
+})();
+
+
+
+const track=document.getElementById('track'),canvas=document.getElementById('gameCanvas'),dinoEl=document.getElementById('dino'),scoreEl=document.getElementById('score'),bestEl=document.getElementById('best'),statusEl=document.getElementById('status'),cover=document.getElementById('cover'),coverTitle=document.getElementById('coverTitle'),coverText=document.getElementById('coverText'),start=document.getElementById('start');
+let ctx=null,useCanvas=false,running=false,height=0,velocity=0,score=0,best=0,speed=9,ticks=0,timer=null,obstacles=[],jumpQueuedUntil=0,lastJumpInputAt=0;
+try{best=Number(arcadeStorage.getItem('hatorri_dino_recorde'))||0}catch(e){best=0}
+function testCanvas(){try{ctx=canvas.getContext('2d');if(!ctx)return false;ctx.clearRect(0,0,2,2);ctx.fillStyle='#ff0000';ctx.fillRect(0,0,1,1);const pixel=ctx.getImageData(0,0,1,1).data;ctx.clearRect(0,0,560,218);return pixel[3]>0}catch(e){ctx=null;return false}}
+useCanvas=testCanvas();track.classList.toggle('canvas-mode',useCanvas);
+const format=n=>String(Math.floor(n)).padStart(5,'0');
+function worldWidth(){return useCanvas?560:(track.clientWidth||560)}function baseY(){return useCanvas?184:27}function dinoX(){return useCanvas?48:38}
+function updateScore(){scoreEl.textContent=format(score);bestEl.textContent=format(best);statusEl.textContent='BEST '+format(best)+' • VELOCIDADE '+(speed/9).toFixed(1)+'x'}
+function clearObstacles(){obstacles.forEach(item=>item.el?.remove());obstacles=[]}
+function addCactusAt(x){const h=22+Math.floor(Math.random()*19),w=11+Math.floor(Math.random()*5),item={x,w,h};if(!useCanvas){const el=document.createElement('div');el.className='cactus';el.style.width=w+'px';el.style.height=h+'px';el.style.left=x+'px';track.appendChild(el);item.el=el}obstacles.push(item)}
+function seedRoad(){addCactusAt(360);addCactusAt(880)}
+function maintainRoad(){const farthest=obstacles.reduce((max,item)=>Math.max(max,item.x),-Infinity);if(farthest<worldWidth()+100)addCactusAt(farthest+520)}
+function requestJump(){if(!running)return;const now=Date.now();if(now-lastJumpInputAt<70)return;lastJumpInputAt=now;jumpQueuedUntil=now+220;if(height===0){velocity=11.5;jumpQueuedUntil=0}}
+function update(){if(!running)return;ticks++;score+=speed*.12;speed=Math.min(21.6,9+score/150);height+=velocity;velocity-=1.08;if(height<=0){height=0;velocity=0;if(jumpQueuedUntil>=Date.now()){velocity=11.5;jumpQueuedUntil=0}}dinoEl.classList.toggle('jumping',height>0);maintainRoad();
+for(let i=obstacles.length-1;i>=0;i--){const item=obstacles[i];item.x-=speed;if(item.el)item.el.style.left=item.x+'px';const left=dinoX(),right=left+(useCanvas?38:32);if(item.x<right&&item.x+item.w>left&&height<item.h-4)return gameOver();if(item.x<-30){item.el?.remove();obstacles.splice(i,1)}}
+if(!useCanvas)dinoEl.style.bottom=(27+height)+'px';drawCanvas();updateScore()}
+function drawCloud(x,y,scale){ctx.fillStyle='#ffffff30';ctx.beginPath();ctx.arc(x,y,8*scale,0,Math.PI*2);ctx.arc(x+12*scale,y-3*scale,11*scale,0,Math.PI*2);ctx.arc(x+25*scale,y,8*scale,0,Math.PI*2);ctx.fill()}
+function drawDino(x,y,step){ctx.save();ctx.shadowColor='#0007';ctx.shadowBlur=4;ctx.shadowOffsetY=3;const body=ctx.createLinearGradient(x,y,x+32,y+35);body.addColorStop(0,'#cef7d8');body.addColorStop(1,'#4cad7b');ctx.fillStyle=body;ctx.beginPath();ctx.ellipse(x+16,y+21,12,13,-.2,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;ctx.beginPath();ctx.moveTo(x+8,y+18);ctx.lineTo(x-3,y+23);ctx.lineTo(x+9,y+27);ctx.closePath();ctx.fill();ctx.beginPath();ctx.ellipse(x+25,y+9,10,10,-.15,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.ellipse(x+31,y+13,8,5,0,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#55b680';ctx.lineWidth=6;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(x+12,y+29);ctx.lineTo(x+10+(step?4:-2),y+37);ctx.moveTo(x+22,y+29);ctx.lineTo(x+23+(step?-3:4),y+37);ctx.stroke();ctx.strokeStyle='#a5e9bb';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x+8+(step?4:-2),y+37);ctx.lineTo(x+14+(step?4:-2),y+37);ctx.moveTo(x+21+(step?-3:4),y+37);ctx.lineTo(x+27+(step?-3:4),y+37);ctx.stroke();ctx.fillStyle='#10251a';ctx.beginPath();ctx.arc(x+28,y+6,2,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#eaffef';ctx.lineWidth=1;ctx.stroke();ctx.restore()}
+function drawCanvas(){if(!useCanvas||!ctx)return;const bg=ctx.createLinearGradient(0,0,0,218);bg.addColorStop(0,'#172a43');bg.addColorStop(1,'#0b111b');ctx.fillStyle=bg;ctx.fillRect(0,0,560,218);
+ctx.fillStyle='#ffffffaa';for(const[x,y]of[[34,27],[93,42],[166,20],[242,48],[335,27],[421,51]])ctx.fillRect(x,y,2,2);ctx.fillStyle='#f2f6ff';ctx.shadowColor='#8fc7ff';ctx.shadowBlur=14;ctx.beginPath();ctx.arc(515,31,14,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
+const drift=(score*1.7)%700;drawCloud(620-drift,65,1);drawCloud(290-(drift*.55)%430,94,.72);
+ctx.fillStyle='#18243a';ctx.beginPath();ctx.moveTo(0,184);ctx.lineTo(75,126);ctx.lineTo(145,184);ctx.lineTo(230,112);ctx.lineTo(330,184);ctx.lineTo(425,132);ctx.lineTo(520,184);ctx.lineTo(560,151);ctx.lineTo(560,218);ctx.lineTo(0,218);ctx.fill();
+ctx.strokeStyle='#75839a';ctx.setLineDash([8,7]);ctx.beginPath();ctx.moveTo(0,185);ctx.lineTo(560,185);ctx.stroke();ctx.setLineDash([]);
+const x=dinoX(),y=baseY()-38-height,step=height>0?0:Math.floor(ticks/3)%2;drawDino(x,y,step);
+ctx.fillStyle='#d06b75';for(const item of obstacles){const cy=185-item.h;ctx.fillRect(item.x,cy,item.w,item.h);ctx.fillRect(item.x-5,cy+9,7,5)}}
+function gameOver(){running=false;clearInterval(timer);timer=null;best=Math.max(best,Math.floor(score));try{arcadeStorage.setItem('hatorri_dino_recorde',String(best))}catch(e){}updateScore();coverTitle.textContent='FIM DE JOGO';coverText.textContent='Você fez '+format(score)+' pontos.';start.textContent='JOGAR NOVAMENTE';cover.classList.remove('hidden')}
+function reset(){clearObstacles();running=true;height=0;velocity=0;score=0;speed=9;ticks=0;jumpQueuedUntil=0;lastJumpInputAt=0;dinoEl.style.bottom='27px';dinoEl.classList.remove('jumping');cover.classList.add('hidden');seedRoad();if(timer)clearInterval(timer);timer=setInterval(update,28);drawCanvas();updateScore()}
+function handleJumpInput(event){if(event.target===start)return;if(event.cancelable)event.preventDefault();requestJump()}
+track.addEventListener('pointerdown',handleJumpInput,{passive:false});track.addEventListener('touchstart',handleJumpInput,{passive:false});track.addEventListener('click',handleJumpInput);start.addEventListener('pointerdown',event=>{event.preventDefault();event.stopPropagation();reset()});start.addEventListener('click',event=>{event.preventDefault();event.stopPropagation()});document.addEventListener('keydown',event=>{if(event.code==='Space'||event.code==='ArrowUp'){event.preventDefault();requestJump()}});
+drawCanvas();updateScore();coverText.textContent=useCanvas?'Pule os cactos, acelere a corrida e bata seu recorde!':'Modo compatível ativado. Toque para começar!';
+
+
+// Native keyboard activation must also work on the recovered pointer controls.
+document.addEventListener('click', event => {
+  const button = event.target.closest?.('button');
+  if (event.detail !== 0 || !button || button.onclick || event.defaultPrevented) return;
+  const EventType = globalThis.PointerEvent || globalThis.MouseEvent;
+  if (EventType) button.dispatchEvent(new EventType('pointerdown', { bubbles: true, cancelable: true }));
+});
+
+</script>
+</body>
+</html>

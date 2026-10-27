@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b1220">
+<title>Damas · Hatorri Arcade</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<style>
+
+:root{--bg:#10151f;--panel:#192131;--line:#33405a;--blue:#62b5ff;--purple:#9a7cff;--text:#f7f9ff;--muted:#aeb9cc}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+body{margin:0;background:transparent;color:var(--text);font-family:Arial,sans-serif;touch-action:manipulation}
+.shell{max-width:620px;margin:auto;padding:14px}
+.game-card{overflow:hidden;border:1px solid var(--line);border-radius:20px;background:linear-gradient(160deg,var(--panel),var(--bg));box-shadow:0 14px 38px #0008}
+.game-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 18px;border-bottom:1px solid var(--line)}
+.game-brand{color:var(--blue);font-size:9px;font-weight:800;letter-spacing:2px}
+.game-title{font-size:18px;font-weight:900;margin-top:3px}
+.scorebar{display:flex;gap:14px;text-align:center}
+.score-label{color:var(--muted);font-size:8px;font-weight:700;letter-spacing:1px}
+.score-value{font:800 18px monospace;margin-top:3px}
+.game-main{padding:15px}
+.stage{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:15px;background:#0b1018}
+.action-row{display:flex;gap:8px;justify-content:center;margin-top:12px}
+.game-button{min-height:44px;padding:0 15px;border:1px solid #ffffff26;border-radius:11px;background:#ffffff12;color:white;font-weight:800}
+.game-button:active{transform:scale(.96)}
+.game-button.primary{background:linear-gradient(135deg,var(--purple),var(--blue));color:#07101c}
+.game-status{min-height:15px;margin-top:11px;color:var(--muted);font:10px monospace;text-align:center}
+.cover{position:absolute;inset:0;z-index:4;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;background:#090d14e8;text-align:center}
+.cover.hidden{display:none}
+.cover-title{font-size:25px;font-weight:900}
+.cover-text{max-width:290px;margin:7px 0 14px;color:var(--muted);font-size:11px}
+
+.board8{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));grid-template-rows:repeat(8,minmax(0,1fr));width:100%;aspect-ratio:1;overflow:hidden}.sq{position:relative;min-width:0;min-height:0;overflow:hidden;border:0;padding:0;display:flex;align-items:center;justify-content:center}.light{background:#d7c9b1}.dark{background:#58657a}.sq.selected{box-shadow:inset 0 0 0 4px #ffd34e}.sq.target:after{content:"";width:25%;height:25%;border-radius:50%;background:#7dffaeaa}.piece{position:absolute;width:70%;height:70%;border-radius:50%;border:3px solid #ffffff66;box-shadow:0 4px 8px #0008;display:flex;align-items:center;justify-content:center}.red{background:#e45866}.black{background:#202633}.king:after{content:"♛";color:#ffd34e;font-size:clamp(12px,4vw,20px)}.mode-row{display:flex;gap:8px;margin-bottom:11px}.mode-row button{flex:1}.mode-active{background:#62b5ff;color:#07101c}
+</style>
+<link rel="stylesheet" href="../assets/game-shell.css">
+<link rel="stylesheet" href="../assets/hatorri-theme.css">
+</head>
+<body>
+<nav class="arcade-game-nav" aria-label="Navegação do jogo"><a href="../index.html">← Voltar ao arcade</a><span>HATORRI <strong>ARCADE</strong></span></nav>
+<div class="shell"><div class="game-card">
+<div class="game-head"><div><div class="game-brand">HATORRI ARCADE</div><div class="game-title">DAMAS</div></div><div class="scorebar"><div><div class="score-label">VOCÊ</div><div class="score-value" id="humanCount">12</div></div><div><div class="score-label">BOT</div><div class="score-value" id="botCount">12</div></div></div></div>
+<div class="game-main"><div class="mode-row"><button class="game-button mode-active" id="vsBot">CONTRA O BOT</button><button class="game-button" id="local">2 JOGADORES</button></div><div class="stage"><div class="board8" id="board"></div><div class="cover hidden" id="cover"><div class="cover-title" id="result"></div><div class="cover-text" id="resultText"></div></div></div>
+<div class="action-row"><button class="game-button primary" id="restart">NOVA PARTIDA</button></div><div class="game-status" id="status">SUA VEZ • PEÇAS VERMELHAS</div></div></div></div>
+
+<p class="arcade-game-note">Damas recreativas: capturas obrigatórias, damas de passo curto. Contra o bot ou 2 jogadores no mesmo aparelho.</p>
+<script>
+
+const arcadeStorage = (() => {
+  const memory = new Map();
+  return {
+    getItem(key) {
+      key = String(key);
+      try { const value = globalThis.localStorage.getItem(key); if (value !== null) { memory.set(key, value); return value; } }
+      catch { /* Storage may be denied in an embedded browser. */ }
+      return memory.has(key) ? memory.get(key) : null;
+    },
+    setItem(key, value) {
+      key = String(key); value = String(value); memory.set(key, value);
+      try { globalThis.localStorage.setItem(key, value); } catch { /* Keep this page playable in memory. */ }
+    },
+    removeItem(key) {
+      key = String(key); memory.delete(key);
+      try { globalThis.localStorage.removeItem(key); } catch { /* No persistent storage. */ }
+    }
+  };
+})();
+
+
+const gameTimers = new Set();
+function gameSetTimeout(callback, delay) {
+  const id = setTimeout(() => { gameTimers.delete(id); callback(); }, delay);
+  gameTimers.add(id); return id;
+}
+function clearGameTimers() { for (const id of gameTimers) clearTimeout(id); gameTimers.clear(); }
+
+
+const boardEl=document.getElementById('board'),statusEl=document.getElementById('status'),cover=document.getElementById('cover'),resultEl=document.getElementById('result'),resultText=document.getElementById('resultText');
+const humanCount=document.getElementById('humanCount'),botCount=document.getElementById('botCount'),vsBot=document.getElementById('vsBot'),local=document.getElementById('local');let board,turn,selected=null,targets=[],locked=null,over=false,mode='bot';
+const inside=(r,c)=>r>=0&&r<8&&c>=0&&c<8,clone=b=>b.map(row=>row.map(p=>p?{side:p.side,king:p.king}:null));
+function setup(){clearGameTimers();board=Array.from({length:8},()=>Array(8).fill(null));for(let r=0;r<3;r++)for(let c=0;c<8;c++)if((r+c)%2)board[r][c]={side:'bot',king:false};for(let r=5;r<8;r++)for(let c=0;c<8;c++)if((r+c)%2)board[r][c]={side:'human',king:false};turn='human';selected=null;targets=[];locked=null;over=false;cover.classList.add('hidden');statusEl.textContent=mode==='bot'?'SUA VEZ • PEÇAS VERMELHAS':'VEZ DAS VERMELHAS';render()}
+function directions(piece){return piece.king?[[-1,-1],[-1,1],[1,-1],[1,1]]:piece.side==='human'?[[-1,-1],[-1,1]]:[[1,-1],[1,1]]}
+function movesFor(b,r,c,capturesOnly=false){const p=b[r][c];if(!p)return[];const out=[],walk=directions(p),all=[[-1,-1],[-1,1],[1,-1],[1,1]];for(const[d1,d2]of all){const nr=r+d1,nc=c+d2;if(!inside(nr,nc))continue;const canWalk=walk.some(d=>d[0]===d1&&d[1]===d2);if(!b[nr][nc]&&!capturesOnly&&canWalk)out.push({fr:r,fc:c,tr:nr,tc:nc,cap:null});else if(b[nr][nc]&&b[nr][nc].side!==p.side){const jr=r+d1*2,jc=c+d2*2;if(inside(jr,jc)&&!b[jr][jc])out.push({fr:r,fc:c,tr:jr,tc:jc,cap:[nr,nc]})}}return out}
+function allMoves(b,side){let normal=[],caps=[];for(let r=0;r<8;r++)for(let c=0;c<8;c++)if(b[r][c]?.side===side){for(const m of movesFor(b,r,c))m.cap?caps.push(m):normal.push(m)}return caps.length?caps:normal}
+function apply(b,m){const p=b[m.fr][m.fc];b[m.fr][m.fc]=null;b[m.tr][m.tc]=p;if(m.cap)b[m.cap[0]][m.cap[1]]=null;if((p.side==='human'&&m.tr===0)||(p.side==='bot'&&m.tr===7))p.king=true}
+function chooseBot(){if(over||mode!=='bot'||turn!=='bot')return;const moves=allMoves(board,'bot');if(!moves.length)return finish('human');let best=[],bestScore=-999;for(const m of moves){const test=clone(board),before=test[m.fr][m.fc];apply(test,m);let score=(m.cap?80:0)+(before.king?5:0)+(test[m.tr][m.tc].king&&!before.king?55:0)+m.tr*2;score+=allMoves(test,'bot').filter(x=>x.cap).length*8-scoreThreat(test,m.tr,m.tc);if(score>bestScore){bestScore=score;best=[m]}else if(score===bestScore)best.push(m)}const picked=best[Math.floor(Math.random()*best.length)];apply(board,picked);if(picked.cap&&movesFor(board,picked.tr,picked.tc,true).some(m=>m.cap)){gameSetTimeout(()=>botChain(picked.tr,picked.tc),280);render();return}turn='human';statusEl.textContent='SUA VEZ • CAPTURAS SÃO OBRIGATÓRIAS';checkEnd();render()}
+function scoreThreat(b,r,c){return allMoves(b,'human').some(m=>m.cap&&m.cap[0]===r&&m.cap[1]===c)?35:0}
+function botChain(r,c){if(over||mode!=='bot'||turn!=='bot')return;const caps=movesFor(board,r,c,true).filter(m=>m.cap);if(!caps.length){turn='human';checkEnd();render();return}caps.sort((a,b)=>b.tr-a.tr);const m=caps[0];apply(board,m);render();gameSetTimeout(()=>botChain(m.tr,m.tc),260)}
+function click(r,c){if(over||(mode==='bot'&&turn==='bot'))return;if(selected){const move=targets.find(m=>m.tr===r&&m.tc===c);if(move){apply(board,move);if(move.cap){const more=movesFor(board,r,c,true).filter(m=>m.cap);if(more.length){selected=[r,c];targets=more;locked=[r,c];statusEl.textContent='CAPTURE NOVAMENTE';render();return}}selected=null;targets=[];locked=null;turn=turn==='human'?'bot':'human';checkEnd();if(over)return;if(mode==='bot'&&turn==='bot'){statusEl.textContent='BOT PENSANDO...';render();gameSetTimeout(chooseBot,380)}else{statusEl.textContent=turn==='human'?'VEZ DAS VERMELHAS':'VEZ DAS PRETAS';render()}return}}
+const p=board[r][c];if(p?.side===turn&&(!locked||(locked[0]===r&&locked[1]===c))){const legal=allMoves(board,turn).filter(m=>m.fr===r&&m.fc===c);selected=[r,c];targets=legal;statusEl.textContent=legal.length?'ESCOLHA O DESTINO':'OUTRA PEÇA DEVE CAPTURAR';render()}}
+function checkEnd(){const hm=allMoves(board,'human'),bm=allMoves(board,'bot');if(!hm.length)finish('bot');else if(!bm.length)finish('human')}
+function finish(winner){over=true;resultEl.textContent=mode==='bot'?(winner==='human'?'VOCÊ VENCEU! 🎉':'O BOT VENCEU'):(winner==='human'?'VERMELHAS VENCERAM!':'PRETAS VENCERAM!');resultText.textContent='A partida terminou sem movimentos para o adversário.';cover.classList.remove('hidden');statusEl.textContent=resultEl.textContent}
+function render(){boardEl.innerHTML='';let hc=0,bc=0;for(let r=0;r<8;r++)for(let c=0;c<8;c++){const sq=document.createElement('button');sq.className='sq '+((r+c)%2?'dark':'light');if(selected&&selected[0]===r&&selected[1]===c)sq.classList.add('selected');if(targets.some(m=>m.tr===r&&m.tc===c))sq.classList.add('target');const p=board[r][c];if(p){p.side==='human'?hc++:bc++;const disc=document.createElement('span');disc.className='piece '+(p.side==='human'?'red':'black')+(p.king?' king':'');sq.appendChild(disc)}sq.addEventListener('pointerdown',e=>{e.preventDefault();click(r,c)});boardEl.appendChild(sq)}humanCount.textContent=hc;botCount.textContent=bc}
+function setMode(next){mode=next;vsBot.classList.toggle('mode-active',mode==='bot');local.classList.toggle('mode-active',mode==='local');setup()}
+vsBot.addEventListener('pointerdown',()=>setMode('bot'));local.addEventListener('pointerdown',()=>setMode('local'));document.getElementById('restart').addEventListener('pointerdown',setup);setup();
+
+
+// Native keyboard activation must also work on the recovered pointer controls.
+document.addEventListener('click', event => {
+  const button = event.target.closest?.('button');
+  if (event.detail !== 0 || !button || button.onclick || event.defaultPrevented) return;
+  const EventType = globalThis.PointerEvent || globalThis.MouseEvent;
+  if (EventType) button.dispatchEvent(new EventType('pointerdown', { bubbles: true, cancelable: true }));
+});
+
+</script>
+</body>
+</html>

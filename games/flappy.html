@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b1220">
+<title>Flappy · Hatorri Arcade</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<style>
+:root{--bg:#10151f;--panel:#192131;--line:#33405a;--blue:#62b5ff;--purple:#9a7cff;--text:#f7f9ff;--muted:#aeb9cc}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+body{margin:0;background:transparent;color:var(--text);font-family:Arial,sans-serif;touch-action:manipulation}
+.shell{max-width:620px;margin:auto;padding:14px}
+.game-card{overflow:hidden;border:1px solid var(--line);border-radius:20px;background:linear-gradient(160deg,var(--panel),var(--bg));box-shadow:0 14px 38px #0008}
+.game-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 18px;border-bottom:1px solid var(--line)}
+.game-brand{color:var(--blue);font-size:9px;font-weight:800;letter-spacing:2px}
+.game-title{font-size:18px;font-weight:900;margin-top:3px}
+.scorebar{display:flex;gap:14px;text-align:center}
+.score-label{color:var(--muted);font-size:8px;font-weight:700;letter-spacing:1px}
+.score-value{font:800 18px monospace;margin-top:3px}
+.game-main{padding:15px}
+.stage{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:15px;background:#0b1018}
+.action-row{display:flex;gap:8px;justify-content:center;margin-top:12px}
+.game-button{min-height:44px;padding:0 15px;border:1px solid #ffffff26;border-radius:11px;background:#ffffff12;color:white;font-weight:800}
+.game-button:active{transform:scale(.96)}
+.game-button.primary{background:linear-gradient(135deg,var(--purple),var(--blue));color:#07101c}
+.game-status{min-height:15px;margin-top:11px;color:var(--muted);font:10px monospace;text-align:center}
+.cover{position:absolute;inset:0;z-index:4;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;background:#090d14e8;text-align:center}
+.cover.hidden{display:none}
+.cover-title{font-size:25px;font-weight:900}
+.cover-text{max-width:290px;margin:7px 0 14px;color:var(--muted);font-size:11px}
+.sky{display:block;width:100%;height:300px;background:#10283a;touch-action:none}.hint{text-align:center;color:#9fc7df;font:10px monospace;margin-top:10px}</style>
+<link rel="stylesheet" href="../assets/game-shell.css">
+<link rel="stylesheet" href="../assets/hatorri-theme.css">
+</head>
+<body>
+<nav class="arcade-game-nav" aria-label="Navegação do jogo"><a href="../index.html">← Voltar ao arcade</a><span>HATORRI <strong>ARCADE</strong></span></nav>
+<div class="shell"><div class="game-card"><div class="game-head"><div><div class="game-brand">HATORRI ARCADE</div><div class="game-title">FLAPPY</div></div><div class="scorebar"><div><div class="score-label">PONTOS</div><div class="score-value" id="score">000</div></div><div><div class="score-label">RECORDE</div><div class="score-value" id="best">000</div></div></div></div><div class="game-main"><div class="stage" id="stage"><canvas class="sky" id="canvas" width="560" height="300"></canvas><div class="cover" id="cover"><div class="cover-title" id="title">FLAPPY</div><div class="cover-text" id="text">Toque para voar entre os canos.</div><button class="game-button primary" id="start">COMEÇAR</button></div></div><div class="hint">TOQUE EM QUALQUER PONTO DA PISTA</div></div></div></div>
+<p class="arcade-game-note">Jogo local no navegador. Recordes ficam neste aparelho quando o armazenamento está disponível.</p>
+<script>
+
+const arcadeStorage = (() => {
+  const memory = new Map();
+  return {
+    getItem(key) {
+      key = String(key);
+      try { const value = globalThis.localStorage.getItem(key); if (value !== null) { memory.set(key, value); return value; } }
+      catch { /* Storage may be denied in an embedded browser. */ }
+      return memory.has(key) ? memory.get(key) : null;
+    },
+    setItem(key, value) {
+      key = String(key); value = String(value); memory.set(key, value);
+      try { globalThis.localStorage.setItem(key, value); } catch { /* Keep this page playable in memory. */ }
+    },
+    removeItem(key) {
+      key = String(key); memory.delete(key);
+      try { globalThis.localStorage.removeItem(key); } catch { /* No persistent storage. */ }
+    }
+  };
+})();
+
+
+
+const canvas=document.getElementById('canvas'),ctx=canvas.getContext('2d'),stage=document.getElementById('stage'),scoreEl=document.getElementById('score'),bestEl=document.getElementById('best'),cover=document.getElementById('cover'),title=document.getElementById('title'),text=document.getElementById('text'),start=document.getElementById('start');let y=145,vy=0,pipes=[],score=0,best=0,running=false,last=0,spawn=0,raf=0,lastTap=0;try{best=Number(arcadeStorage.getItem('hatorri_flappy_best'))||0}catch(e){}const fmt=n=>String(n).padStart(3,'0');function flap(){if(!running)return;const now=Date.now();if(now-lastTap<70)return;lastTap=now;vy=-285}function reset(){y=145;vy=0;pipes=[];score=0;spawn=0;last=performance.now();running=true;cover.classList.add('hidden');cancelAnimationFrame(raf);raf=requestAnimationFrame(loop)}function addPipe(){const gap=105,top=35+Math.random()*105;pipes.push({x:580,top,bottom:top+gap,passed:false})}function over(){running=false;best=Math.max(best,score);try{arcadeStorage.setItem('hatorri_flappy_best',best)}catch(e){}title.textContent='FIM DE JOGO';text.textContent='Você passou por '+score+' canos.';start.textContent='JOGAR NOVAMENTE';cover.classList.remove('hidden')}function draw(){const bg=ctx.createLinearGradient(0,0,0,300);bg.addColorStop(0,'#143d59');bg.addColorStop(1,'#82c8d8');ctx.fillStyle=bg;ctx.fillRect(0,0,560,300);ctx.fillStyle='#ffffff30';for(let i=0;i<5;i++){const x=(i*143-score*23)%680;ctx.beginPath();ctx.arc(x,55+i%2*28,18,0,Math.PI*2);ctx.arc(x+22,55+i%2*28,25,0,Math.PI*2);ctx.fill()}ctx.fillStyle='#48aa69';for(const p of pipes){ctx.fillRect(p.x,0,44,p.top);ctx.fillRect(p.x,p.bottom,44,300-p.bottom);ctx.fillStyle='#76d58b';ctx.fillRect(p.x-4,p.top-12,52,12);ctx.fillRect(p.x-4,p.bottom,52,12);ctx.fillStyle='#48aa69'}ctx.save();ctx.translate(95,y);ctx.rotate(Math.max(-.4,Math.min(.7,vy/500)));ctx.fillStyle='#ffd558';ctx.beginPath();ctx.ellipse(0,0,18,13,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#ff8a45';ctx.beginPath();ctx.moveTo(15,-2);ctx.lineTo(30,3);ctx.lineTo(15,7);ctx.fill();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(8,-5,5,0,Math.PI*2);ctx.fill();ctx.fillStyle='#17202c';ctx.beginPath();ctx.arc(10,-5,2,0,Math.PI*2);ctx.fill();ctx.restore();scoreEl.textContent=fmt(score);bestEl.textContent=fmt(best)}function loop(now){if(!running)return;const dt=Math.min(.035,(now-last)/1000);last=now;spawn+=dt;y+=vy*dt;vy+=790*dt;if(spawn>1.45){spawn=0;addPipe()}for(const p of pipes){p.x-=145*dt;if(!p.passed&&p.x+44<95){p.passed=true;score++}if(p.x<113&&p.x+44>77&&(y-12<p.top||y+12>p.bottom))return over()}pipes=pipes.filter(p=>p.x>-60);if(y<10||y>290)return over();draw();raf=requestAnimationFrame(loop)}function input(e){if(e.target===start)return;if(e.cancelable)e.preventDefault();flap()}stage.addEventListener('pointerdown',input,{passive:false});stage.addEventListener('touchstart',input,{passive:false});stage.addEventListener('click',input);start.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();reset()});document.addEventListener('keydown',e=>{if(e.code==='Space'||e.code==='ArrowUp'){e.preventDefault();flap()}});draw();
+
+
+// Native keyboard activation must also work on the recovered pointer controls.
+document.addEventListener('click', event => {
+  const button = event.target.closest?.('button');
+  if (event.detail !== 0 || !button || button.onclick || event.defaultPrevented) return;
+  const EventType = globalThis.PointerEvent || globalThis.MouseEvent;
+  if (EventType) button.dispatchEvent(new EventType('pointerdown', { bubbles: true, cancelable: true }));
+});
+
+</script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0b1220"><meta name="description" content="Jogue Uno contra três bots no Hatorri Arcade. Sem cadastro, direto no navegador.">
+  <title>Uno · Hatorri Arcade</title>
+  <link rel="stylesheet" href="../assets/game-shell.css"><link rel="stylesheet" href="../assets/uno.css">
+<link rel="stylesheet" href="../assets/hatorri-theme.css">
+</head>
+<body>
+  <main class="uno-page">
+    <nav class="uno-nav"><a href="../index.html">← Voltar ao arcade</a><span>HATORRI <strong>ARCADE</strong></span></nav>
+    <header class="uno-heading"><div><span class="eyebrow">CARTAS · VOCÊ + 3 BOTS</span><h1>Uma carta.<br><em>Mil reviravoltas.</em></h1></div><button id="restart" class="action-button" type="button">↻ Nova partida</button></header>
+    <section class="uno-table" aria-label="Mesa de Uno">
+      <div id="opponents" class="opponents" aria-label="Adversários"></div>
+      <div class="table-label" aria-hidden="true">HATORRI / UNO</div>
+      <div class="center-piles"><button id="draw" class="card card-back draw-pile" type="button" aria-label="Comprar uma carta"><span class="back-mark">H</span><small>COMPRAR +1</small></button><div><div id="top-card" aria-label="Última carta jogada"></div><div id="active-color" class="active-color"></div></div></div>
+      <div class="table-footer"><span id="direction"></span><span id="deck-count"></span></div>
+    </section>
+    <div class="turn-row"><div><span id="turn-badge" class="turn-badge">SUA VEZ</span><p id="status" role="status" aria-live="polite"></p></div><button id="pass" class="action-button" type="button" hidden>Passar a vez →</button></div>
+    <section class="hand-section" aria-label="Suas cartas"><div class="hand-title"><h2>Sua mão <span id="hand-count"></span></h2><span>Toque em uma carta destacada</span></div><div id="hand" class="hand"></div></section>
+    <section class="rules"><details><summary>Como jogar · regras desta mesa</summary><div><p>Combine a cor, o número ou o símbolo da carta central. Vença descartando todas as cartas. A mesa tem você e três bots — não é uma sala online.</p><ul><li><strong>↷ Pular:</strong> o próximo jogador perde a vez. <strong>⇄ Inverter:</strong> troca o sentido.</li><li><strong>+2 / +4:</strong> o próximo jogador compra e perde a vez. Não se acumulam compras.</li><li><strong>Coringa:</strong> escolha a próxima cor. O +4 só pode ser usado se você não tem cartas da cor atual.</li><li>Você pode comprar uma carta. Se ela servir, jogue essa carta ou passe; se não servir, a vez passa automaticamente.</li><li>O aviso <strong>UNO</strong> é automático: não há botão de gritar nem penalidade por esquecer. O descarte inicial é numérico.</li></ul><p class="fine-print">Adaptação recreativa independente. Sem apostas ou prêmios reais.</p></div></details></section>
+  </main>
+  <dialog id="color-dialog"><form method="dialog"><span class="eyebrow">CORINGA NA MESA</span><h2>Qual é a próxima cor?</h2><div class="color-options"><button value="red" class="red">Vermelho</button><button value="yellow" class="yellow">Amarelo</button><button value="green" class="green">Verde</button><button value="blue" class="blue">Azul</button></div><button class="cancel" value="cancel">Voltar às cartas</button></form></dialog>
+  <noscript>Ative o JavaScript para jogar Uno neste navegador.</noscript>
+  <script type="module" src="../assets/uno.js"></script>
+</body></html>
